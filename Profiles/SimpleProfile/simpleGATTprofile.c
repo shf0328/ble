@@ -59,7 +59,7 @@
  * CONSTANTS
  */
 
-#define SERVAPP_NUM_ATTR_SUPPORTED        23
+#define SERVAPP_NUM_ATTR_SUPPORTED        29
 
 /*********************************************************************
  * TYPEDEFS
@@ -111,12 +111,25 @@ CONST uint8 simpleProfilePwdSavedUUID[ATT_BT_UUID_SIZE] =
 };
 
 
-// Characteristic 6 UUID: 0xFFF6
+// Characteristic 7 UUID: 0xFFF7
 CONST uint8 simpleProfilePwdInDeviceUUID[ATT_BT_UUID_SIZE] =
 { 
   LO_UINT16(SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_UUID), HI_UINT16(SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_UUID)
 };
 
+
+// Characteristic 8 UUID: 0xFFF8
+CONST uint8 simpleProfileData1UUID[ATT_BT_UUID_SIZE] =
+{ 
+  LO_UINT16(SIMPLEPROFILE_CHAR_DATA1_UUID), HI_UINT16(SIMPLEPROFILE_CHAR_DATA1_UUID)
+};
+
+
+// Characteristic 9 UUID: 0xFFF9
+CONST uint8 simpleProfileData2UUID[ATT_BT_UUID_SIZE] =
+{ 
+  LO_UINT16(SIMPLEPROFILE_CHAR_DATA2_UUID), HI_UINT16(SIMPLEPROFILE_CHAR_DATA2_UUID)
+};
 
 
 /*********************************************************************
@@ -211,13 +224,29 @@ static uint8 simpleProfilePwdSavedDesp[17] = "Characteristic 6\0";
 // Simple Profile Characteristic 7 PWD-IN-DEVICE Properties
 static uint8 simpleProfilePwdInDeviceProps = GATT_PROP_READ | GATT_PROP_WRITE;
 
-// Characteristic 6 Value
+// Characteristic 7 Value
 static uint8 simpleProfilePwdInDevice[SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0 };
 
-// Simple Profile Characteristic 6 User Description
+// Simple Profile Characteristic 7 User Description
 static uint8 simpleProfilePwdInDeviceUserDesp[17] = "Characteristic 7\0";
 
+// Simple Profile Characteristic 8 PWD-IN-DEVICE Properties
+static uint8 simpleProfileData1Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
+// Characteristic 8 Value
+static uint8 simpleProfileData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = "this data1 in table\0";
+
+// Simple Profile Characteristic 8 User Description
+static uint8 simpleProfileData1UserDesp[17] = "Characteristic 8\0";
+
+// Simple Profile Characteristic 9 PWD-IN-DEVICE Properties
+static uint8 simpleProfileData2Props = GATT_PROP_READ | GATT_PROP_WRITE;
+
+// Characteristic 9 Value
+static uint8 simpleProfileData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = "this data2 in table\0";
+
+// Simple Profile Characteristic 9 User Description
+static uint8 simpleProfileData2UserDesp[17] = "Characteristic 9\0";
 
 
 
@@ -414,6 +443,56 @@ static gattAttribute_t simpleProfileAttrTbl[SERVAPP_NUM_ATTR_SUPPORTED] =
         simpleProfilePwdInDeviceUserDesp 
       },
 
+
+	// Characteristic 8 Declaration
+	{ 
+	 { ATT_BT_UUID_SIZE, characterUUID },
+        GATT_PERMIT_READ, 
+       0,
+        &simpleProfileData1Props 
+       },
+ 
+      // Characteristic Value 8
+      { 
+        { ATT_BT_UUID_SIZE, simpleProfileData1UUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+        0, 
+        simpleProfileData1 
+      },
+
+      // Characteristic 8 User Description
+      { 
+        { ATT_BT_UUID_SIZE, charUserDescUUID },
+        GATT_PERMIT_READ, 
+        0, 
+        simpleProfileData1UserDesp 
+      },
+
+	// Characteristic 9 Declaration
+	{ 
+	 { ATT_BT_UUID_SIZE, characterUUID },
+        GATT_PERMIT_READ, 
+       0,
+        &simpleProfileData2Props 
+       },
+ 
+      // Characteristic Value 9
+      { 
+        { ATT_BT_UUID_SIZE, simpleProfileData2UUID },
+        GATT_PERMIT_READ | GATT_PERMIT_WRITE,
+        0, 
+        simpleProfileData2 
+      },
+
+      // Characteristic 9 User Description
+      { 
+        { ATT_BT_UUID_SIZE, charUserDescUUID },
+        GATT_PERMIT_READ, 
+        0, 
+        simpleProfileData2UserDesp 
+      },
+	
+
 };
 
 
@@ -602,7 +681,29 @@ bStatus_t SimpleProfile_SetParameter( uint8 param, uint8 len, void *value )
       }
       break;
 
-	  
+	case SIMPLEPROFILE_CHAR_DATA1:
+      if ( len == SIMPLEPROFILE_CHAR_DATA1_LEN ) 
+      {
+        VOID osal_memcpy( simpleProfileData1, value, SIMPLEPROFILE_CHAR_DATA1_LEN );
+      }
+      else
+      {
+        ret = bleInvalidRange;
+      }
+      break;
+
+
+	case SIMPLEPROFILE_CHAR_DATA2:
+      if ( len == SIMPLEPROFILE_CHAR_DATA2_LEN ) 
+      {
+        VOID osal_memcpy( simpleProfileData2, value, SIMPLEPROFILE_CHAR_DATA2_LEN );
+      }
+      else
+      {
+        ret = bleInvalidRange;
+      }
+      break;
+	
     default:
       ret = INVALIDPARAMETER;
       break;
@@ -656,7 +757,16 @@ bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
     case SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_UUID:
       VOID osal_memcpy( value, simpleProfilePwdInDevice, SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN );
       break;
-	  
+
+
+    case SIMPLEPROFILE_CHAR_DATA1_UUID:
+      VOID osal_memcpy( value, simpleProfileData1, SIMPLEPROFILE_CHAR_DATA1_LEN );
+      break;
+
+    case SIMPLEPROFILE_CHAR_DATA2_UUID:
+      VOID osal_memcpy( value, simpleProfileData2, SIMPLEPROFILE_CHAR_DATA2_LEN );
+      break;
+
     default:
       ret = INVALIDPARAMETER;
       break;

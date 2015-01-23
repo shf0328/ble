@@ -356,6 +356,9 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
     uint8 charValue5[SIMPLEPROFILE_CHAR5_LEN] = { 1, 2, 3, 4, 5 };
     uint8 charValue6[SIMPLEPROFILE_CHAR_PWD_SAVED_LEN] ={ 1, 2, 3, 4, 5, 6, 7, 7 };
     uint8 PwdInDevice[SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN] ={ 1, 2, 3, 4, 5, 6, 7 ,8};
+    uint8 charData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = "this data1 in table\0";
+    uint8 charData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = "this data2 in table\0";
+
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, sizeof ( uint8 ), &charValue1 );
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR2, sizeof ( uint8 ), &charValue2 );
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR3, sizeof ( uint8 ), &charValue3 );
@@ -363,6 +366,9 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR5, SIMPLEPROFILE_CHAR5_LEN, charValue5 );
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR_PWD_SAVED, SIMPLEPROFILE_CHAR_PWD_SAVED_LEN, charValue6 );
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR_PWD_IN_DEVICE, SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN, PwdInDevice );
+    SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR_DATA1, SIMPLEPROFILE_CHAR_DATA1_LEN, charData1 );
+    SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR_DATA2, SIMPLEPROFILE_CHAR_DATA2_LEN, charData2 );
+    
   }
 
 
