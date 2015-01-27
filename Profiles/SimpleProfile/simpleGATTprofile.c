@@ -234,7 +234,7 @@ static uint8 simpleProfilePwdInDeviceUserDesp[17] = "Characteristic 7\0";
 static uint8 simpleProfileData1Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
 // Characteristic 8 Value
-static uint8 simpleProfileData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = "this data1 in table\0";
+static uint8 simpleProfileData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Simple Profile Characteristic 8 User Description
 static uint8 simpleProfileData1UserDesp[17] = "Characteristic 8\0";
@@ -243,7 +243,7 @@ static uint8 simpleProfileData1UserDesp[17] = "Characteristic 8\0";
 static uint8 simpleProfileData2Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
 // Characteristic 9 Value
-static uint8 simpleProfileData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = "this data2 in table\0";
+static uint8 simpleProfileData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Simple Profile Characteristic 9 User Description
 static uint8 simpleProfileData2UserDesp[17] = "Characteristic 9\0";
@@ -754,16 +754,16 @@ bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
       VOID osal_memcpy( value, simpleProfilePwdSaved, SIMPLEPROFILE_CHAR_PWD_SAVED );
       break;  
       
-    case SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_UUID:
+    case SIMPLEPROFILE_CHAR_PWD_IN_DEVICE:
       VOID osal_memcpy( value, simpleProfilePwdInDevice, SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN );
       break;
 
 
-    case SIMPLEPROFILE_CHAR_DATA1_UUID:
+    case SIMPLEPROFILE_CHAR_DATA1:
       VOID osal_memcpy( value, simpleProfileData1, SIMPLEPROFILE_CHAR_DATA1_LEN );
       break;
 
-    case SIMPLEPROFILE_CHAR_DATA2_UUID:
+    case SIMPLEPROFILE_CHAR_DATA2:
       VOID osal_memcpy( value, simpleProfileData2, SIMPLEPROFILE_CHAR_DATA2_LEN );
       break;
 
@@ -844,6 +844,16 @@ static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr
         VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN );
         break;  
 
+
+	case SIMPLEPROFILE_CHAR_DATA1_UUID:
+        *pLen = SIMPLEPROFILE_CHAR_DATA1_LEN;
+        VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR_DATA1_LEN );
+        break; 
+
+	case SIMPLEPROFILE_CHAR_DATA2_UUID:
+        *pLen = SIMPLEPROFILE_CHAR_DATA2_LEN;
+        VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR_DATA2_LEN );
+        break; 
 
 
 	  
@@ -983,6 +993,62 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
         }
              
         break;
+
+
+	case SIMPLEPROFILE_CHAR_DATA1_UUID:
+
+        //Validate the value
+        // Make sure it's not a blob oper
+        if ( offset == 0 )
+        {
+          if ( len != SIMPLEPROFILE_CHAR_DATA1_LEN )
+          {
+            status = ATT_ERR_INVALID_VALUE_SIZE;
+          }
+        }
+        else
+        {
+          status = ATT_ERR_ATTR_NOT_LONG;
+        }
+        
+        //Write the value
+        if ( status == SUCCESS )
+        {
+          VOID osal_memcpy( pAttr->pValue, pValue, SIMPLEPROFILE_CHAR_DATA1_LEN );
+          notifyApp = SIMPLEPROFILE_CHAR_DATA1;
+        }
+             
+        break;
+
+	case SIMPLEPROFILE_CHAR_DATA2_UUID:
+
+        //Validate the value
+        // Make sure it's not a blob oper
+        if ( offset == 0 )
+        {
+          if ( len != SIMPLEPROFILE_CHAR_DATA2_LEN )
+          {
+            status = ATT_ERR_INVALID_VALUE_SIZE;
+          }
+        }
+        else
+        {
+          status = ATT_ERR_ATTR_NOT_LONG;
+        }
+        
+        //Write the value
+        if ( status == SUCCESS )
+        {
+          VOID osal_memcpy( pAttr->pValue, pValue, SIMPLEPROFILE_CHAR_DATA2_LEN );
+          notifyApp = SIMPLEPROFILE_CHAR_DATA2;
+        }
+             
+        break;
+
+
+
+
+	
       case GATT_CLIENT_CHAR_CFG_UUID:
         status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
                                                  offset, GATT_CLIENT_CFG_NOTIFY );
