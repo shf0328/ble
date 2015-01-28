@@ -356,8 +356,8 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
     uint8 charValue5[SIMPLEPROFILE_CHAR5_LEN] = { 1, 2, 3, 4, 5 };
     uint8 charValue6[SIMPLEPROFILE_CHAR_PWD_SAVED_LEN] ={ 1, 2, 3, 4, 5, 6, 7, 7 };
     uint8 PwdInDevice[SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN] ={ 1, 2, 3, 4, 5, 6, 7 ,8};
-    uint8 charData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-    uint8 charData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+    uint8 charData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 8};
+    uint8 charData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 9};
 
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR1, sizeof ( uint8 ), &charValue1 );
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR2, sizeof ( uint8 ), &charValue2 );

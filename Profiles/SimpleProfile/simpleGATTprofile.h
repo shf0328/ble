@@ -87,8 +87,8 @@ extern "C"
 #define SIMPLEPROFILE_CHAR5_LEN           5  
 #define SIMPLEPROFILE_CHAR_PWD_SAVED_LEN              8
 #define SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN        8  
-#define SIMPLEPROFILE_CHAR_DATA1_LEN			     20
-#define SIMPLEPROFILE_CHAR_DATA2_LEN			     20
+#define SIMPLEPROFILE_CHAR_DATA1_LEN			     10
+#define SIMPLEPROFILE_CHAR_DATA2_LEN			     10
 /*********************************************************************
  * TYPEDEFS
  */

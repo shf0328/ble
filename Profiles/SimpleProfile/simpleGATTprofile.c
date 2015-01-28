@@ -234,7 +234,7 @@ static uint8 simpleProfilePwdInDeviceUserDesp[17] = "Characteristic 7\0";
 static uint8 simpleProfileData1Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
 // Characteristic 8 Value
-static uint8 simpleProfileData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static uint8 simpleProfileData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Simple Profile Characteristic 8 User Description
 static uint8 simpleProfileData1UserDesp[17] = "Characteristic 8\0";
@@ -243,7 +243,7 @@ static uint8 simpleProfileData1UserDesp[17] = "Characteristic 8\0";
 static uint8 simpleProfileData2Props = GATT_PROP_READ | GATT_PROP_WRITE;
 
 // Characteristic 9 Value
-static uint8 simpleProfileData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+static uint8 simpleProfileData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // Simple Profile Characteristic 9 User Description
 static uint8 simpleProfileData2UserDesp[17] = "Characteristic 9\0";
