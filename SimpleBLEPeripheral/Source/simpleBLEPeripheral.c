@@ -224,6 +224,56 @@ static simpleProfileCBs_t simpleBLEPeripheral_SimpleProfileCBs =
  * PUBLIC FUNCTIONS
  */
 
+
+
+/*********************************************************************
+ * @fn      simpleBLEPeripheral_HandleKeys
+ *
+ * @brief   Handles all key events for this device.
+ *
+ * @param   shift - true if in shift/alt.
+ * @param   keys - bit field for key events. Valid entries:
+ *                 
+ *                 
+ *
+ * @return  none
+ */
+static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
+{
+  uint8 SK_Keys = 0;
+
+  VOID shift;  // Intentionally unreferenced parameter
+
+  HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_4 );
+
+  if ( keys & HAL_KEY_UP )
+  {  
+    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+  }
+
+  if ( keys & HAL_KEY_LEFT )
+  {
+    HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
+  }
+
+  if ( keys & HAL_KEY_RIGHT )
+  {
+    HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
+  }
+  
+  if ( keys & HAL_KEY_CENTER )
+  {
+    HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
+
+  }
+  
+  if ( keys & HAL_KEY_DOWN )
+  {
+    HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
+  }
+}
+
+
 /*********************************************************************
  * @fn      SimpleBLEPeripheral_Init
  *
@@ -340,35 +390,10 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
     
   }
 
+     // Register for all key events - This app will handle all key events
+    RegisterForKeys( simpleBLEPeripheral_TaskID );
 
-#if defined( CC2540_MINIDK )
 
-  SK_AddService( GATT_ALL_SERVICES ); // Simple Keys Profile
-
-  // Register for all key events - This app will handle all key events
-  RegisterForKeys( simpleBLEPeripheral_TaskID );
-
-  // makes sure LEDs are off
-  HalLedSet( (HAL_LED_1 | HAL_LED_2), HAL_LED_MODE_OFF );
-
-  // For keyfob board set GPIO pins into a power-optimized state
-  // Note that there is still some leakage current from the buzzer,
-  // accelerometer, LEDs, and buttons on the PCB.
-
-  P0SEL = 0; // Configure Port 0 as GPIO
-  P1SEL = 0; // Configure Port 1 as GPIO
-  P2SEL = 0; // Configure Port 2 as GPIO
-
-  P0DIR = 0xFC; // Port 0 pins P0.0 and P0.1 as input (buttons),
-                // all others (P0.2-P0.7) as output
-  P1DIR = 0xFF; // All port 1 pins (P1.0-P1.7) as output
-  P2DIR = 0x1F; // All port 1 pins (P2.0-P2.4) as output
-
-  P0 = 0x03; // All pins on port 0 to low except for P0.0 and P0.1 (buttons)
-  P1 = 0;   // All pins on port 1 to low
-  P2 = 0;   // All pins on port 2 to low
-
-#endif // #if defined( CC2540_MINIDK )
 
 #if (defined HAL_LCD) && (HAL_LCD == TRUE)
 
@@ -470,6 +495,10 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
   return 0;
 }
 
+
+
+
+
 /*********************************************************************
  * @fn      simpleBLEPeripheral_ProcessOSALMsg
  *
@@ -483,11 +512,9 @@ static void simpleBLEPeripheral_ProcessOSALMsg( osal_event_hdr_t *pMsg )
 {
   switch ( pMsg->event )
   {
-  #if defined( CC2540_MINIDK )
     case KEY_CHANGE:
       simpleBLEPeripheral_HandleKeys( ((keyChange_t *)pMsg)->state, ((keyChange_t *)pMsg)->keys );
       break;
-  #endif // #if defined( CC2540_MINIDK )
 
   default:
     // do nothing
@@ -495,70 +522,7 @@ static void simpleBLEPeripheral_ProcessOSALMsg( osal_event_hdr_t *pMsg )
   }
 }
 
-#if defined( CC2540_MINIDK )
-/*********************************************************************
- * @fn      simpleBLEPeripheral_HandleKeys
- *
- * @brief   Handles all key events for this device.
- *
- * @param   shift - true if in shift/alt.
- * @param   keys - bit field for key events. Valid entries:
- *                 HAL_KEY_SW_2
- *                 HAL_KEY_SW_1
- *
- * @return  none
- */
-static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
-{
-  uint8 SK_Keys = 0;
 
-  VOID shift;  // Intentionally unreferenced parameter
-
-  if ( keys & HAL_KEY_SW_1 )
-  {
-    SK_Keys |= SK_KEY_LEFT;
-  }
-
-  if ( keys & HAL_KEY_SW_2 )
-  {
-
-    SK_Keys |= SK_KEY_RIGHT;
-
-    // if device is not in a connection, pressing the right key should toggle
-    // advertising on and off
-    // Note:  If PLUS_BROADCASTER is define this condition is ignored and
-    //        Device may advertise during connections as well. 
-#ifndef PLUS_BROADCASTER  
-    if( gapProfileState != GAPROLE_CONNECTED )
-    {
-#endif // PLUS_BROADCASTER
-      uint8 current_adv_enabled_status;
-      uint8 new_adv_enabled_status;
-
-      //Find the current GAP advertisement status
-      GAPRole_GetParameter( GAPROLE_ADVERT_ENABLED, &current_adv_enabled_status );
-
-      if( current_adv_enabled_status == FALSE )
-      {
-        new_adv_enabled_status = TRUE;
-      }
-      else
-      {
-        new_adv_enabled_status = FALSE;
-      }
-
-      //change the GAP advertisement status to opposite of current status
-      GAPRole_SetParameter( GAPROLE_ADVERT_ENABLED, sizeof( uint8 ), &new_adv_enabled_status );
-#ifndef PLUS_BROADCASTER
-    }
-#endif // PLUS_BROADCASTER
-  }
-
-  // Set the value of the keys state to the Simple Keys Profile;
-  // This will send out a notification of the keys state if enabled
-  SK_SetParameter( SK_KEY_ATTR, sizeof ( uint8 ), &SK_Keys );
-}
-#endif // #if defined( CC2540_MINIDK )
 
 /*********************************************************************
  * @fn      peripheralStateNotificationCB
