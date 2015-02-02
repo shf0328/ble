@@ -21,8 +21,10 @@
 #include "hal_lcd.h"
 
 #include "gatt.h"
-
+#include "Osal_snv.h"
+#include "Osal_Nv.h"
 #include "hci.h"
+#include "flash_operate.h"
 
 #include "gapgattserver.h"
 #include "gattservapp.h"
@@ -113,6 +115,12 @@
  * LOCAL VARIABLES
  */
 static uint8 simpleBLEPeripheral_TaskID;   // Task ID for internal task/event processing
+
+//用于测试的一个结构体
+uint8 test[8]={ 1, 2, 3, 4, 5, 6, 7 ,8};
+uint8 test2[50]={0};
+
+
 
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
 
@@ -244,16 +252,27 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
 
   VOID shift;  // Intentionally unreferenced parameter
 
-  HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_4 );
+  HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_3 );
 
   if ( keys & HAL_KEY_UP )
   {  
     HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+
+    //按键次数累加
+    test2[0]++;
+
+    // 把数据结构保存到flash
+    flash_Rinfo_all_write(test2); 
+
+    // 显示按键次数
+    HalLcdWriteStringValue("KeyCount = ", test2[0], 10, HAL_LCD_LINE_6 );
+
   }
 
   if ( keys & HAL_KEY_LEFT )
   {
     HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
+    flash_pwd_delete();
   }
 
   if ( keys & HAL_KEY_RIGHT )
@@ -270,6 +289,11 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   if ( keys & HAL_KEY_DOWN )
   {
     HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
+
+	flash_pwd_read(test); 
+
+    // 显示按键次数
+    HalLcdWriteStringValue("KeyCount = ", test[1], 10, HAL_LCD_LINE_6 );
   }
 }
 
@@ -470,6 +494,17 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
 
     // Start Bond Manager
     VOID GAPBondMgr_Register( &simpleBLEPeripheral_BondMgrCBs );
+
+	osal_memset(test, 0, 8);
+    flash_pwd_init();
+	flash_info_init();
+    flash_Rinfo_all_read(test2);
+    // 显示按键次数
+    HalLcdWriteStringValue("KeyCount = ", test[0], 10, HAL_LCD_LINE_6 );
+
+
+
+
 
     // Set timer for first periodic event
     osal_start_timerEx( simpleBLEPeripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD );
