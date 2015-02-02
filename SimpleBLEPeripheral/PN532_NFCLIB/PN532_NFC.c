@@ -16,19 +16,182 @@
 // Global Variables Definiions
 //
 unsigned char Pn532PowerMode = STANDBY;
+
 //---------------------------------------------------------------------------
 // level-3 functions
 //
-void inInitNFC(){
-	
+
+// PN532InitAsInitiator() Status: untested
+// desc:		将PN532初始化为initiator
+// input:		void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
+int PN532InitAsInitiator(void){
+	//TODO: test
+	nfcUARTOpen();
+	unsigned char Output[66] = {0};
+	int res = inJumpForDEP(0x01, 0x02, 0x00, NULL, NULL, NULL, 0, Output);
+	if(res == NFC_FAIL){
+		//low level error
+		return NFC_FAIL;
+	}else if(Output[0] != 0){
+		//app level error
+		return NFC_FAIL;
+	}
+	return NFC_SUCCESS;
 }
 
-void tgInitNFC(){
-	
+// PN532InitAsTarget() Status: untested
+// desc:		将PN532初始化为target
+// input:		void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
+int PN532InitAsTarget(void){
+	//TODO: test
+	nfcUARTOpen();
+	unsigned char Output[66] = {0};
+	unsigned char MifareParams[6] = {0, 0, 0, 0, 0, 0x40};
+	unsigned char FelicaParams[18] = {0};
+	unsigned char NFCID3t[10] = {0};
+	int res = tgInitAsTarget(0, MifareParams, FelicaParams, NFCID3t, 0, NULL, 0, NULL, Output);
+	if(res == NFC_FAIL){
+		//low level error
+		return NFC_FAIL;
+	}else if(Output[0] == 0x7F){
+		//syntax error
+		return NFC_FAIL;
+	}
+	return NFC_SUCCESS;
+}
+
+// PN532TargetDataExchange() Status: untested
+// desc:	使用PN532作为target进行数据交换
+//	input:	DataOut: 输出数据
+//				DataOutLen: Input的长度
+//				DataIn: 存放输入数据的容器, 长度应合适
+//	output: 失败NFC_FAIL,成功则为DataIn的实际长度.
+int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
+	//TODO: test
+	unsigned char InputTemp[262] = {0};
+	unsigned char OutputTemp[263] = {0};
+	int DataOutLenRest = DataOutLen;
+	int res = 0;
+	int DataInPos = 0;
+
+	//使用chaining mechanism接收数据
+	res = tgGetData(OutputTemp);
+	if(res == NFC_FAIL){//error handling
+		//low level error
+		return NFC_FAIL;
+	}else if( (OutputTemp[0]&0x3F) != 0){
+		//app level error
+		return NFC_FAIL;
+	}
+	while( (OutputTemp[0]&MI) != 0){
+		memcpy(&DataIn[DataInPos], &OutputTemp[1], 262);
+		res = tgGetData(OutputTemp);
+		if(res == NFC_FAIL){//error handling
+			//low level error
+			return NFC_FAIL;
+		}else if( (OutputTemp[0]&0x3F) != 0){
+			//app level error
+			return NFC_FAIL;
+		}
+	}
+	memcpy(&DataIn[DataInPos], &OutputTemp[1], res-1);
+	DataInPos = DataInPos + res - 1;
+
+	//使用chaining mechanism发送数据
+	while(DataOutLenRest > 262){
+		memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], 262);
+		res = tgSetMetaData(InputTemp, 262, OutputTemp);
+		if(res == NFC_FAIL){//error handling
+			//low level error
+			return NFC_FAIL;
+		}else if( (OutputTemp[0]&0x3F) != 0){
+			//app level error
+			return NFC_FAIL;
+		}
+		DataOutLenRest = DataOutLenRest - 262;
+	}
+	memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], DataOutLenRest);
+	res = tgSetData(InputTemp, DataOutLenRest, OutputTemp);
+	if(res == NFC_FAIL){//error handling
+		//low level error
+		return NFC_FAIL;
+	}else if( (OutputTemp[0]&0x3F) != 0){
+		//app level error
+		return NFC_FAIL;
+	}
+
+	return DataInPos;
+}
+
+// PN532InitiatorDataExchange() Status: untested
+// desc:	使用PN532作为target进行数据交换
+//	input:	DataOut: 输出数据
+//				DataOutLen: Input的长度
+//				DataIn: 存放输入数据的容器, 长度应合适
+//	output: 失败NFC_FAIL,成功则为DataIn的实际长度.
+int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
+	//TODO: test
+	unsigned char InputTemp[262] = {0};
+	unsigned char OutputTemp[263] = {0};
+	int DataOutLenRest = DataOutLen;
+	int res = 0;
+	int DataInPos = 0;
+
+	//使用chaining mechanism发送数据
+	while(DataOutLenRest > 262){
+		memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], 262);
+		res = inDataExchange(0x01 | MI, InputTemp, 262, OutputTemp);
+		if(res == NFC_FAIL){//error handling
+			//low level error
+			return NFC_FAIL;
+		}else if( (OutputTemp[0]&0x3F) != 0){
+			//app level error
+			return NFC_FAIL;
+		}
+		DataOutLenRest = DataOutLenRest - 262;
+	}
+	memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], DataOutLenRest);
+	res = inDataExchange(0x01, InputTemp, DataOutLenRest, OutputTemp);
+	if(res == NFC_FAIL){//error handling
+		//low level error
+		return NFC_FAIL;
+	}else if( (OutputTemp[0]&0x3F) != 0){
+		//app level error
+		return NFC_FAIL;
+	}
+
+	//使用chaining mechanism接收数据
+	while( (OutputTemp[0]&MI) != 0){
+		memcpy(&DataIn[DataInPos], &OutputTemp[1], 262);
+		DataInPos = DataInPos + 262;
+		res = inDataExchange(0x01, NULL, 0, OutputTemp);
+		if(res == NFC_FAIL){//error handling
+			//low level error
+			return NFC_FAIL;
+		}else if( (OutputTemp[0]&0x3F) != 0){
+			//app level error
+			return NFC_FAIL;
+		}
+	}
+	memcpy(&DataIn[DataInPos], &OutputTemp[1], res-1);
+	DataInPos = DataInPos + res - 1;
+	return DataInPos;
+}
+
+// DelayMs() Status: untested
+// desc:		进行毫秒级延时,仅用于CC254x平台.
+//	input:		msec: 延时毫秒数
+//	output: 	void.
+void DelayMs(unsigned int msec){
+	unsigned int i,j;
+	for(i=0; i<msec; i++)
+		for(j=0; j<535; j++);
 }
 
 void UARTcallback(unsigned char task_id, unsigned int events){
-	
+	//void
 }
 // end of level-4 functions
 //---------------------------------------------------------------------------
@@ -36,7 +199,7 @@ void UARTcallback(unsigned char task_id, unsigned int events){
 // hardware-oriented functions
 // replace registers with HAL functions
 
-// nfcUARTOpen() Status:tested
+// nfcUARTOpen() Status: tested
 // desc:	init and open UART.
 // input:	void
 // output:	void
@@ -84,6 +247,7 @@ void nfcUARTOpen(){
 	halUARTCfg.flowControl = FALSE;
 	halUARTCfg.callBackFunc =  (halUARTCBack_t)UARTcallback;
 	HalUARTInit();
+	//TODO: change the UART port
 	HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
 #endif
 }
@@ -91,8 +255,8 @@ void nfcUARTOpen(){
 // UARTsend() Status:tested
 // desc:	send data through UART.
 // input:	unsigned char *pBuffer: the buffer of data to be sent
-//			int length: the length of pBuffer
-// output:	NFC_FAIL(-1) when failed and the bytes sent when successed
+//				int length: the length of pBuffer
+// output:	NFC_FAIL(-1) when failed and NFC_SUCCESS(0) when successed.
 int UARTsend(unsigned char *pBuffer, int length){
 	/*obsolete send process
 	U0DBUF = dat;
@@ -116,12 +280,13 @@ int UARTsend(unsigned char *pBuffer, int length){
 		return NFC_SUCCESS;
 	}
 #else
+	//TODO: change the UART port
 	temp = HalUARTWrite(HAL_UART_PORT_0, pBuffer, length);
-	if(temp == 0){
+	if(temp != length){
 		return NFC_FAIL;
 	}else{
-		return temp;
-	}	
+		return NFC_SUCCESS;
+	}
 #endif
 }
 
@@ -155,11 +320,12 @@ int UARTreceive(unsigned char *pBuffer, int length){
 		return NFC_SUCCESS;
 	}
 #else
+	//TODO: change the UART port
 	temp = HalUARTRead(HAL_UART_PORT_0, pBuffer, length)
-	if(temp == 0){
+	if(temp != length){
 		return NFC_FAIL;
 	}else{
-		return temp;
+		return NFC_SUCCESS;
 	}
 #endif
 }
@@ -170,12 +336,12 @@ int UARTreceive(unsigned char *pBuffer, int length){
 // output:	NFC_SUCCESS when successed and NFC_FAIL when failed
 int UARTflushRxBuf(void){
 #ifdef LINUX
-	unsigned char buf[300] = {0};
-	read(fd,buf,300);
+	unsigned char buf[RX_BUFFER_LEN] = {0};
+	read(fd,buf,RX_BUFFER_LEN);
 	return NFC_SUCCESS;
 #else
-	unsigned char buf[HAL_UART_ISR_RX_MAX] = {0};
-	HalUARTRead(HAL_UART_PORT_0,buf,HAL_UART_ISR_RX_MAX);
+	unsigned char buf[RX_BUFFER_LEN] = {0};
+	HalUARTRead(HAL_UART_PORT_0,buf,RX_BUFFER_LEN);
 	return NFC_SUCCESS;
 #endif
 }
@@ -210,7 +376,7 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 #ifdef LINUX
 			usleep(5000);
 #else
-			//TODO: short delay
+			DelayMs(5);
 #endif
 			//receive ACK frame
 			len = PN532receiveFrame(Frame);
@@ -295,7 +461,7 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 // desc:	send a NACK frame.
 // input:	void.
 // output:	NFC_SUCCESS(0) or the error code.
-unsigned int PN532sendNACKFrame(void){
+int PN532sendNACKFrame(void){
 	return NFC_SUCCESS;
 }
 
@@ -303,7 +469,7 @@ unsigned int PN532sendNACKFrame(void){
 // desc:	send a ACK frame.
 // input:	void.
 // output:	NFC_SUCCESS(0) or the error code.
-unsigned int PN532sendACKFrame(void){
+int PN532sendACKFrame(void){
 	unsigned char Frame[6] = {0x00, 0x00, 0xFF, 0x00, 0xFF, 0x00};
 	//send
 	return UARTsend(Frame, 6);
@@ -456,7 +622,7 @@ int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output){
 #ifdef LINUX
 	usleep(10000);
 #else
-	//TODO: short delay
+	DelayMs(10);
 #endif
 	//receive ACK frame
 	len = PN532receiveFrame(Receive);
@@ -477,7 +643,7 @@ int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output){
 #ifdef LINUX
 	sleep(1);
 #else
-	//TODO: short delay
+	DelayMs(1000);
 #endif
 	//receive info frame
 	len = PN532receiveFrame(Receive);
@@ -613,7 +779,7 @@ int PN532getGeneralStatus(unsigned char* OutParam){
 //					returns are the value of registers in the order of ADDR.
 //	output: the actual length of the VAL for further use.
 //			or the error code.
-unsigned int PN532readRegister(int* ADDR, unsigned int ADDRLen, unsigned char* VAL){
+int PN532readRegister(int* ADDR, unsigned int ADDRLen, unsigned char* VAL){
 	return NFC_SUCCESS;
 }
 
@@ -622,7 +788,7 @@ unsigned int PN532readRegister(int* ADDR, unsigned int ADDRLen, unsigned char* V
 //			ADDRLen:the length of ADDR.
 //			VAL:the value of the ADDR. length should be ADDRLen.
 //	output: NFC_SUCCESS(0) or the error code.
-unsigned int PN532writeRegister(int* ADDR, unsigned int ADDRLen, unsigned char* VAL){
+int PN532writeRegister(int* ADDR, unsigned int ADDRLen, unsigned char* VAL){
 	return NFC_SUCCESS;
 }
 
@@ -631,7 +797,7 @@ unsigned int PN532writeRegister(int* ADDR, unsigned int ADDRLen, unsigned char* 
 //					remember to use free(GpioVal) to release the memory when using malloc.
 //					returns are the value of P3 P7 I0I1.
 //	output: the length of GpioVal (3) or the error code.
-unsigned int PN532readGPIO(unsigned char* GpioVal){
+int PN532readGPIO(unsigned char* GpioVal){
 	return NFC_SUCCESS;
 }
 
@@ -639,14 +805,14 @@ unsigned int PN532readGPIO(unsigned char* GpioVal){
 //	input:	P3:please refer to the User Manual
 //			P7:please refer to the User Manual
 //	output: NFC_SUCCESS(0) or the error code.
-unsigned int PN532writeGPIO(unsigned char P3, unsigned char P7){
+int PN532writeGPIO(unsigned char P3, unsigned char P7){
 	return NFC_SUCCESS;
 }
 
 // 	PN532setSerialBaudRate() Status:unimplemented
 //	input:	BR:the baud rate of HSU.
 //	output: NFC_SUCCESS(0) or the error code.
-unsigned int PN532setSerialBaudRate(unsigned char BR){
+int PN532setSerialBaudRate(unsigned char BR){
 	return NFC_SUCCESS;
 }
 
@@ -776,7 +942,7 @@ int PN532RFConfiguration(unsigned char CfgItem, unsigned char* ConfigurationData
 // 	PN532RegulationTest() Status:unimplemented
 //	input:	TxMode:please refer to the User Manual.
 //	output: NFC_SUCCESS(0) because there are no output of this command
-unsigned int PN532RegulationTest(unsigned char TxMode){
+int PN532RegulationTest(unsigned char TxMode){
 	return NFC_SUCCESS;
 }
 //---------------------------------------------------------------------------
@@ -858,19 +1024,19 @@ int inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, un
 //				remember to use free(OutParam) to release the memory when using malloc.
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam or the error code.
-unsigned int inJumpForPSL(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, 	unsigned char* NFCID3i, unsigned char* Gi, unsigned int GiLen, unsigned char* OutParam){
+int inJumpForPSL(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, 	unsigned char* NFCID3i, unsigned char* Gi, unsigned int GiLen, unsigned char* OutParam){
 	return NFC_SUCCESS;
 }
 
-unsigned int inListPassiveTarget(unsigned char MaxTg, unsigned char BrTy, unsigned char* InitiatorData){
+int inListPassiveTarget(unsigned char MaxTg, unsigned char BrTy, unsigned char* InitiatorData){
 	return NFC_SUCCESS;
 }
 
-unsigned int inATR(unsigned char Tg, unsigned char Next, unsigned char* NFCID3i, unsigned char* Gi){
+int inATR(unsigned char Tg, unsigned char Next, unsigned char* NFCID3i, unsigned char* Gi){
 	return NFC_SUCCESS;
 }
 
-unsigned int inPSL(unsigned char Tg, unsigned char BRit, unsigned char BRti){
+int inPSL(unsigned char Tg, unsigned char BRit, unsigned char BRti){
 	return NFC_SUCCESS;
 }
 
@@ -913,11 +1079,11 @@ int inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int DataOu
 	return OutParamLen;
 }
 
-unsigned int inCommunicateThru(unsigned char* DataOut){
+int inCommunicateThru(unsigned char* DataOut){
 	return NFC_SUCCESS;
 }
 
-unsigned int inDeselect(unsigned char Tg){
+int inDeselect(unsigned char Tg){
 	return NFC_SUCCESS;
 }
 
@@ -957,11 +1123,11 @@ int inRelease(unsigned char Tg, unsigned char* OutParam){
 	return OutParamLen;
 }
 
-unsigned int inSelect(unsigned char Tg){
+int inSelect(unsigned char Tg){
 	return NFC_SUCCESS;
 }
 
-unsigned int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char* Type){
+int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char* Type){
 	return NFC_SUCCESS;
 }
 //---------------------------------------------------------------------------
@@ -1023,7 +1189,7 @@ int tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned cha
 	return OutParamLen;
 }
 
-unsigned int tgSetGeneralBytes(unsigned char* Gt){
+int tgSetGeneralBytes(unsigned char* Gt){
 	return NFC_SUCCESS;
 }
 
@@ -1132,11 +1298,11 @@ int tgSetMetaData(unsigned char* DataOut, int DataOutLen, unsigned char* OutPara
 	return OutParamLen;
 }
 
-unsigned int tgGetInitiatorCommand(void){
+int tgGetInitiatorCommand(void){
 	return NFC_SUCCESS;
 }
 
-unsigned int tgResponseToInitiator(unsigned char* TgResponse){
+int tgResponseToInitiator(unsigned char* TgResponse){
 	return NFC_SUCCESS;
 }
 
