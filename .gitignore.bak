@@ -45,8 +45,9 @@ $RECYCLE.BIN/
 /Profiles/Roles
 /Profiles/Proximity
 /Profiles/RSC
-
-
+/Profiles/ScanParam
+/Profiles/SensorProfile
+/Profiles/Thermometer
 # =========================
 # Operating System Files
 # =========================
