@@ -442,10 +442,10 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 		LCS = 0 - PDdataLEN;
 		Frame[3] = LCS;
 		DCS = 0;
-		for(i = 0;i < PDdataLEN;i++){
-			Frame[4+i] = PData[i];
-			DCS = DCS - PData[i];
-		}
+		//for(i = 0;i < PDdataLEN;i++){
+		//	Frame[4+i] = PData[i];
+		//	DCS = DCS - PData[i];
+		//}
 		Frame[4+PDdataLEN] = DCS;
 		frameLen = 5+PDdataLEN;
 	}else if(PDdataLEN <= 265){		//build extended Frame

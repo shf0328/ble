@@ -9,7 +9,7 @@
 /*********************************************************************
  * INCLUDES
  */
-
+#include "PN532_NFC.h"
 #include "bcomdef.h"
 #include "OSAL.h"
 #include "OSAL_PwrMgr.h"
@@ -272,7 +272,6 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   if ( keys & HAL_KEY_LEFT )
   {
     HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
-    flash_pwd_delete();
   }
 
   if ( keys & HAL_KEY_RIGHT )
