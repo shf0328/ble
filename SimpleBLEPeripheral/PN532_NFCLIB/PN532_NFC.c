@@ -10,6 +10,14 @@
 	#include <fcntl.h>
 	#include <termios.h>
 	#include <errno.h>
+
+	void *osal_mem_alloc(unsigned int size){
+		return malloc(size);
+	}
+
+	void osal_mem_free(void *ptr){
+		free(ptr);
+	}
 #endif
 
 //---------------------------------------------------------------------------
@@ -303,6 +311,12 @@ int UARTreceive(unsigned char *pBuffer, int length){
 	URX0IF = 0;
 	return temp;*/
 	int temp = 0;
+	osal_mem_free(pBuffer);
+	pBuffer = osal_mem_alloc(length);
+	if(pBuffer == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 #ifdef LINUX
 	temp = read(fd, pBuffer, length);//读了2个但是pbuffer都是0
 	if(temp <= 0){
@@ -321,7 +335,7 @@ int UARTreceive(unsigned char *pBuffer, int length){
 	}
 #else
 	//TODO: change the UART port
-	temp = HalUARTRead(HAL_UART_PORT_0, pBuffer, length)
+	temp = HalUARTRead(HAL_UART_PORT_0, pBuffer, length);
 	if(temp != length){
 		return NFC_FAIL;
 	}else{
@@ -356,7 +370,7 @@ int UARTflushRxBuf(void){
 //			PDdataLEN:the length of PData.
 // output:	NFC_SUCCESS when successed and NFC_FAIL when failed
 int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
-	unsigned char Frame[273] = {0};
+	unsigned char *Frame = NULL;
 	//handle mode of PN532
 	switch (Pn532PowerMode){
 		case LOWVBAT: {
@@ -365,9 +379,6 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 			unsigned char pn532_wakeup_outLVbat_preamble[26] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
 			int res = UARTsend(pn532_wakeup_outLVbat_preamble, 26);
 			if(res == NFC_FAIL){
-#ifdef Debug
-				printf("error sending SAM\n");
-#endif
 				return NFC_FAIL;
 			}
 			//receiving ACK and SAM info frame
@@ -381,27 +392,17 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 			//receive ACK frame
 			len = PN532receiveFrame(Frame);
 			if(len == NFC_FAIL){		//error handling
-#ifdef Debug
-				printf("error receiving SAM ACK\n");
-#endif
 				return NFC_FAIL;
 			}
 			//check ACK
 			if(Frame[0] != 0x00 || Frame[1] != 0xFF){
-#ifdef Debug
-				printf("error checking SAM ACK\n");
-#endif
 				return NFC_FAIL;
 			}
 			//receive info frame
 			len = PN532receiveFrame(Frame);
 			if(len == NFC_FAIL){		//error handling
-#ifdef Debug
-				printf("error receiving SAM info\n");
-#endif
 				return NFC_FAIL;
 			}
-
 			Pn532PowerMode = STANDBY; // PN532 should now be awake
 		}break;
 		case POWERDOWN:{
@@ -422,6 +423,13 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 	int i = 0;unsigned char LCS, DCS;
 	unsigned int frameLen = 0;
 	if(PDdataLEN <= 0xFF){			//build normal Frame
+		//allocate memory for built frame
+		Frame = osal_mem_alloc(4+PDdataLEN+1);
+		if(Frame == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
+		//build frame
 		Frame[0] = 0x00;
 		Frame[1] = 0xFF;
 		Frame[2] = PDdataLEN;
@@ -435,6 +443,13 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 		Frame[4+PDdataLEN] = DCS;
 		frameLen = 5+PDdataLEN;
 	}else if(PDdataLEN <= 265){		//build extended Frame
+		//allocate memory for built frame
+		Frame = osal_mem_alloc(7+PDdataLEN+1);
+		if(Frame == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
+		//build frame
 		Frame[0] = 0x00;
 		Frame[1] = 0xFF;
 		Frame[2] = 0xFF;
@@ -453,7 +468,9 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 	}else{							//return error
 		return NFC_FAIL;
 	}
-	//send frame
+
+	//send frame and deal with the junks
+	osal_mem_free(Frame);
 	return UARTsend(Frame, frameLen);
 }
 
@@ -483,118 +500,101 @@ int PN532sendACKFrame(void){
 //				return only error code when receiving error frame.
 // output:	the actual length of the Receive for further use or NFC_FAIL when failed
 int PN532receiveFrame(unsigned char* Receive){
-	unsigned char temp[275] = {0};
+	osal_mem_free(Receive);	//free the Receive buffer
+	unsigned char *temp = NULL;
 	int i = 0;		//for local count use
 	unsigned char DCS = 0;
 	int LEN = 0;
 	
 	if(NFC_FAIL == UARTreceive(temp, 3)){
-#ifdef Debug
-		printf("no start code received\n");
-#endif
 		return NFC_FAIL;
 	}
 	
 	if(temp[0] != 0x00 || temp[1] != 0x00 || temp[2] != 0xFF){
-#ifdef Debug
-		printf("start code doesn't match\n");
-#endif
 		//preamble not matched
 		UARTflushRxBuf();
 		return NFC_FAIL;
 	}
 	
-	if(NFC_FAIL == UARTreceive(&temp[3], 1)){//读了2个0进来
-#ifdef Debug
-		printf("error receiving LEN\n");
-#endif
+	if(NFC_FAIL == UARTreceive(temp, 2)){//读了2个0进来
 		return NFC_FAIL;
 	}
-	if(NFC_FAIL == UARTreceive(&temp[4], 1)){
-#ifdef Debug
-		printf("error receiving LCS\n");
-#endif
-			return NFC_FAIL;
-	}
 	
-	if(temp[3] == 0x00 && temp[4] == 0xFF){
+	if(temp[0] == 0x00 && temp[1] == 0xFF){
 		//receive ACK frame
-		if(NFC_FAIL == UARTreceive(&temp[5], 1)){
-#ifdef Debug
-		printf("error receiving ACK postamble\n");
-#endif
+		if(NFC_FAIL == UARTreceive(temp, 1)){
 				//receive postamble
 				return NFC_FAIL;
+		}
+		//allocate memory for Receive buffer
+		Receive = osal_mem_alloc(2);
+		if(Receive == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
 		}
 		Receive[0] = 0x00;
 		Receive[1] = 0xFF;
 		LEN = 2;
-	}else if(temp[3] == 0xFF && temp[4] == 0xFF){
+	}else if(temp[0] == 0xFF && temp[1] == 0xFF){
 		//receive extended frame
-		if(NFC_FAIL == UARTreceive(&temp[5], 3)){	//LENm+LENl+LCS
-#ifdef Debug
-		printf("error receiving LENm+LENl+LCS in extended frame\n");
-#endif
+		if(NFC_FAIL == UARTreceive(temp, 3)){	//LENm+LENl+LCS
 			return NFC_FAIL;
 		}
 		//check LEN + LCS
-		if(((unsigned char)(temp[5] + temp[6] + temp[7])) != 0x00){
-#ifdef Debug
-		printf("LEN+LCS checksum error\n");
-#endif
+		if(((unsigned char)(temp[0] + temp[1] + temp[2])) != 0x00){
 			return NFC_FAIL;
 		}
-		LEN = temp[5]*256 + temp[6];
-		//receive TFI and PD and postamble
-		if(NFC_FAIL == UARTreceive(&temp[8], LEN + 2)){
-#ifdef Debug
-		printf("error receiving TFI+PD in extended frame\n");
-#endif
+		LEN = temp[0]*256 + temp[1];
+		//receive TFI and PD and DCS and postamble
+		if(NFC_FAIL == UARTreceive(temp, LEN + 2)){
 			return NFC_FAIL;
 		}
 		//check DCS
 		for(i = 0; i < LEN; i++){
-			DCS = DCS - temp[8+i];
+			DCS = DCS - temp[i];
 		}
-		if(DCS != temp[8 + LEN]){
-#ifdef Debug
-		printf("DCS checksum error\n");
-#endif
+		if(DCS != temp[LEN]){
+			return NFC_FAIL;
+		}
+		//allocate memory for Receive buffer
+		Receive = osal_mem_alloc(LEN);
+		if(Receive == NULL){
+			//memory allocation unsuccess
 			return NFC_FAIL;
 		}
 		//successful received
-		memcpy(Receive, &temp[8], LEN);
+		memcpy(Receive, temp, LEN);
 	}else{
 		//receive normal/error frame
 		//temp[3] is LEN, temp[4] is LCS
 		//check LEN + LCS
-		if( ((unsigned char)(temp[3] + temp[4])) != 0){
-#ifdef Debug
-		printf("LEN+LCS checksum error\n");
-#endif
+		if( ((unsigned char)(temp[0] + temp[1])) != 0){
 			return NFC_FAIL;
 		}
-		LEN = temp[3];
-		//receive TFI and PD and postamble
-		if(NFC_FAIL == UARTreceive(&temp[5], LEN + 2)){
-#ifdef Debug
-		printf("error receiving TFI+PD in normal/error frame\n");
-#endif
+		LEN = temp[0];
+		//receive TFI and PD and DCS and postamble
+		if(NFC_FAIL == UARTreceive(temp, LEN + 2)){
 			return NFC_FAIL;
 		}
 		//check DCS
 		for(i = 0; i < LEN; i++){
-			DCS = DCS - temp[5+i];
+			DCS = DCS - temp[i];
 		}
-		if(DCS != temp[5 + LEN]){
-#ifdef Debug
-		printf("DCS checksum error\n");
-#endif
+		if(DCS != temp[LEN]){
+			return NFC_FAIL;
+		}
+		//allocate memory for Receive buffer
+		Receive = osal_mem_alloc(LEN);
+		if(Receive == NULL){
+			//memory allocation unsuccess
 			return NFC_FAIL;
 		}
 		//successful received
-		memcpy(Receive, &temp[5], LEN);
+		memcpy(Receive, temp, LEN);
 	}
+
+	//deal with the junks
+	osal_mem_free(temp);
 	return LEN;	//return length of received data
 }
 // UARTtransceive() Status:tested
@@ -608,14 +608,14 @@ int PN532receiveFrame(unsigned char* Receive){
 //				return only error code when receiving error frame.
 // output:	the actual length of the Output for further use or NFC_FAIL when failed
 int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output){
-	unsigned char Receive[275] = {0};
+	//free the Output buffer
+	osal_mem_free(Output);
+
+	unsigned char *Receive = NULL;
 	int len = 0;
 	//send frame
 	len = PN532sendFrame(Input, InputLen);
 	if(len == NFC_FAIL){		//error handling
-#ifdef Debug
-		printf("error sending command\n");
-#endif
 		return NFC_FAIL;
 	}
 	//short delay
@@ -627,16 +627,10 @@ int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output){
 	//receive ACK frame
 	len = PN532receiveFrame(Receive);
 	if(len == NFC_FAIL){		//error handling
-#ifdef Debug
-		printf("error receiving command ACK\n");
-#endif
 		return NFC_FAIL;
 	}
 	//check ACK
 	if(Receive[0] != 0x00 || Receive[1] != 0xFF){
-#ifdef Debug
-		printf("error checking command ACK\n");
-#endif
 		return NFC_FAIL;
 	}
 	//short delay
@@ -648,13 +642,11 @@ int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output){
 	//receive info frame
 	len = PN532receiveFrame(Receive);
 	if(len == NFC_FAIL){		//error handling
-#ifdef Debug
-		printf("error receiving command info\n");
-#endif
 		return NFC_FAIL;
 	}
+
 	//load data into Output
-	memcpy(Output, Receive, len);
+	Output = Receive;
 	return len;
 }
 // end of level-1 functions
@@ -674,14 +666,24 @@ int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output){
 //	output: the actual length of the OutParam.
 int PN532diagnose(unsigned char NumTst, unsigned char* InParam,unsigned int InParamLen, unsigned char* OutParam){
 	//TODO: test
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
+
 	//build TFI + PData
-	unsigned char PData[265] = {0xD4, 0x00, 0x00};
+	unsigned char *PData = NULL;
+	int PDataLen = 3 + InParamLen;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x00;
 	PData[2] = NumTst;
 	memcpy(&PData[3], InParam, InParamLen);
-	int PDataLen = 3 + InParamLen;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -692,29 +694,52 @@ int PN532diagnose(unsigned char NumTst, unsigned char* InParam,unsigned int InPa
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
 		//syntax error
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
 // 	PN532getFirmwareVersion() Status:tested
-//	input:	OutParam:the container of OutParam and should be inited with the length of 4.
+//	input:	OutParam:
 //					remember to use free(OutParam) to release the memory when using malloc.
 //					returns are{IC Ver REV Support}.
 //	output: the actual length of the OutParam for further use or the error code.
 //					or NFC_FAIL when failed
 int PN532getFirmwareVersion(unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
-	unsigned char PData[2] = {0xD4, 0x02};
+	unsigned char *PData = NULL;
 	int PDataLen = 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x02;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -724,32 +749,55 @@ int PN532getFirmwareVersion(unsigned char* OutParam){
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
 // 	PN532getGeneralStatus() Status:unimplemented
-//	input:	OutParam:the container of OutParam and should be inited with the length of 12.
-//					remember to use free(OutParam) to release the memory when using malloc.
+//	input:	OutParam:the container of OutParam
+//					remember to use free(OutParam) to release the memory
 //					returns are{Err Field NbTg [Tg1] [BrRx1] [BrTx1] [Type1]
 //											   [Tg2] [BrRx2] [BrTx2] [Type2]
 //											   [SAM status]}.
 //	output: the actual length of the OutParam for further use.
 int PN532getGeneralStatus(unsigned char* OutParam){
 	//TODO: test
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
-	unsigned char PData[2] = {0xD4, 0x04};
+	unsigned char *PData = NULL;
 	int PDataLen = 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x04;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -759,14 +807,28 @@ int PN532getGeneralStatus(unsigned char* OutParam){
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -824,13 +886,22 @@ int PN532setSerialBaudRate(unsigned char BR){
 //	output: the actual length of OutParam.
 int PN532setParameters(unsigned char Flags, unsigned char* OutParam){
 	//TODO: test
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
-	unsigned char PData[3] = {0xD4, 0x12, 0x00};
-	PData[2] = Flags;
+	unsigned char *PData = NULL;
 	int PDataLen = 3;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x12;
+	PData[2] = Flags;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -840,14 +911,28 @@ int PN532setParameters(unsigned char Flags, unsigned char* OutParam){
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -869,17 +954,28 @@ int PN532SAMconfiguration(unsigned char Mode, unsigned char Timeout, unsigned ch
 //	output: the actual length of OutParam.
 int PN532powerDown(unsigned char WakeUpEnable, unsigned char* GenarateIRQ, unsigned char* OutParam){
 	//TODO: test
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
-	unsigned char PData[4] = {0xD4, 0x16, 0x00, 0x00};
-	PData[2] = WakeUpEnable;
+	unsigned char *PData = NULL;
 	int PDataLen = 3;
 	if(GenarateIRQ != NULL){
-		memcpy(&PData[3], GenarateIRQ, 1);
 		PDataLen = PDataLen +1;
+	}
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x16;
+	PData[2] = WakeUpEnable;
+	if(GenarateIRQ != NULL){
+		PData[3] = *GenarateIRQ;
 	}
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -889,14 +985,28 @@ int PN532powerDown(unsigned char WakeUpEnable, unsigned char* GenarateIRQ, unsig
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -910,15 +1020,23 @@ int PN532powerDown(unsigned char WakeUpEnable, unsigned char* GenarateIRQ, unsig
 //	output: the actual length of OutParam.
 int PN532RFConfiguration(unsigned char CfgItem, unsigned char* ConfigurationData, int CfgDataLen, unsigned char* OutParam){
 	//TODO: test
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
-	unsigned char PData[14] = {0xD4, 0x32};
+	unsigned char *PData = NULL;
+	int PDataLen = 3 + CfgDataLen;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x32;
 	PData[2] = CfgItem;
-	int PDataLen = 3;
 	memcpy(&PData[3], ConfigurationData, CfgDataLen);
-	PDataLen = PDataLen +CfgDataLen;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -928,14 +1046,28 @@ int PN532RFConfiguration(unsigned char CfgItem, unsigned char* ConfigurationData
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -949,7 +1081,7 @@ int PN532RegulationTest(unsigned char TxMode){
 // Initiator Commands
 //
 
-// 	inJumpForDEP() Status: tested
+// 	inJumpForDEP() Status: untested
 //	input:	ActPass:active or passive.
 //			BR:106, 212 or 424kbps.
 //			Next:indicate the next bytes. please refer to the User Manual.
@@ -964,33 +1096,53 @@ int PN532RegulationTest(unsigned char TxMode){
 //	output: the length of OutParam.
 int inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, int GiLen, unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[68] = {0};
+	unsigned char *PData = NULL;
+	int PDataLen = 5;
+	int i = 0;	//counter of PData index
+	if(Next & 0x01){
+		if(BR == 0x00){
+			PDataLen = PDataLen + 4;
+		}else{
+			PDataLen = PDataLen + 5;
+		}
+	}
+	if(Next & 0x02){
+		PDataLen = PDataLen + 10;
+	}
+	if(Next & 0x04){
+		PDataLen = PDataLen + GiLen;
+	}
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 	PData[0] = 0xD4;
 	PData[1] = 0x56;
 	PData[2] = ActPass;
 	PData[3] = BR;
 	PData[4] = Next;
-	int PDataLen = 5;
+	i = 5;
 	if(Next & 0x01){
 		if(BR == 0x00){
-			memcpy(&PData[5], PassiveInitiatorData, 4);
-			PDataLen = PDataLen + 4;
+			memcpy(&PData[i], PassiveInitiatorData, 4);
+			i = i + 4;
 		}else{
-			memcpy(&PData[5], PassiveInitiatorData, 5);
-			PDataLen = PDataLen + 5;
+			memcpy(&PData[i], PassiveInitiatorData, 5);
+			i = i + 5;
 		}
 	}
 	if(Next & 0x02){
-		memcpy(&PData[PDataLen], NFCID3i, 10);
-		PDataLen = PDataLen + 10;
+		memcpy(&PData[i], NFCID3i, 10);
+		i = i + 10;
 	}
 	if(Next & 0x04){
-		memcpy(&PData[PDataLen], Gi, GiLen);
-		PDataLen = PDataLen + GiLen;
+		memcpy(&PData[i], Gi, GiLen);
+		i = i + GiLen;
 	}
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -1000,14 +1152,28 @@ int inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, un
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -1040,7 +1206,7 @@ int inPSL(unsigned char Tg, unsigned char BRit, unsigned char BRti){
 	return NFC_SUCCESS;
 }
 
-// 	inDataExchange() Status: tested
+// 	inDataExchange() Status: untested
 //	input:	Tg:the target number. bit 6 is MI.
 //			DataOut:the data to be transfer out.
 //			DataOutLen:the length of DataOut.
@@ -1050,15 +1216,21 @@ int inPSL(unsigned char Tg, unsigned char BRit, unsigned char BRti){
 //	output: the actual length of OutParam.
 int inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int DataOutLen, unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[265] = {0};
+	unsigned char *PData = NULL;
+	int PDataLen = DataOutLen + 3;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 	PData[0] = 0xD4;
 	PData[1] = 0x40;
 	PData[2] = Tg;
 	memcpy(&PData[3], DataOut, DataOutLen);
-	int PDataLen = DataOutLen + 3;
+
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -1068,14 +1240,28 @@ int inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int DataOu
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -1087,7 +1273,7 @@ int inDeselect(unsigned char Tg){
 	return NFC_SUCCESS;
 }
 
-// 	inRelease() Status: tested
+// 	inRelease() Status: untested
 //	input:	Tg:the target number.
 //				OutParam: the container of return vals and should be inited with the length of 1.
 //				remember to use free(OutParam) to release the memory when using malloc.
@@ -1095,14 +1281,19 @@ int inDeselect(unsigned char Tg){
 //	output: the length of OutParam(1).
 int inRelease(unsigned char Tg, unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[3] = {0};
+	unsigned char *PData = NULL;
+	int PDataLen = 3;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 	PData[0] = 0xD4;
 	PData[1] = 0x52;
 	PData[2] = Tg;
-	int PDataLen = 3;
 
 	//transmit data
-	unsigned char Receive[3] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
@@ -1112,14 +1303,28 @@ int inRelease(unsigned char Tg, unsigned char* OutParam){
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -1134,7 +1339,7 @@ int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char* Type){
 // Target Commands
 //
 
-// 	tgInitAsTarget() Status:tested
+// 	tgInitAsTarget() Status: untested
 //	input:	Mode: target mode. please refer to the User Manual.
 //			MifareParams: should be 6 bytes long. please refer to the User Manual.
 //			FeliCaParams: should be 18 bytes long. please refer to the User Manual.
@@ -1149,7 +1354,14 @@ int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char* Type){
 //	output: the length of OutParam.
 int tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned char* FeliCaParams, unsigned char* NFCID3t, unsigned char LENGt, unsigned char* Gt, unsigned char LENTk, unsigned char* Tk, unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[134] = {0};
+	unsigned char *PData = NULL;
+	int PDataLen = 39 + LENGt + LENTk;
+	int pointer = 38;			//array index for count use
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 	PData[0] = 0xD4;
 	PData[1] = 0x8C;
 	PData[2] = Mode;
@@ -1157,7 +1369,7 @@ int tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned cha
 	memcpy(&PData[9], FeliCaParams, 18);
 	memcpy(&PData[27], NFCID3t, 10);
 	PData[37] = LENGt;
-	unsigned char pointer = 38;			//array index for count use
+
 	if(LENGt != 0){
 		memcpy(&PData[pointer], Gt, LENGt);
 		pointer = pointer + LENGt;
@@ -1167,25 +1379,40 @@ int tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned cha
 	if(LENTk != 0){
 		memcpy(&PData[pointer], Tk, LENTk);
 	}
-	int PDataLen = 39 + LENGt + LENTk;
+
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
 		return NFC_FAIL;
 	}
+
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -1193,38 +1420,60 @@ int tgSetGeneralBytes(unsigned char* Gt){
 	return NFC_SUCCESS;
 }
 
-// 	tgGetData() Status:tested
+// 	tgGetData() Status: untested
 //	input:	OutParam:the container of return vals and should be inited with the length of 263.
 //				remember to use free(OutParam) to release the memory when using malloc.
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgGetData(unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[2] = {0xD4, 0x86};
+	unsigned char *PData = NULL;
+	int PDataLen = 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x86;
 	
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
-	ReceiveLen = PN532transceive(PData, 2, Receive);
+	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
 		return NFC_FAIL;
 	}
-	
+
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
-// 	tgSetData() Status:tested
+// 	tgSetData() Status: untested
 //	input:	DataOut: the data to be transfer out from the target;
 //			DataOutLen: the length of DataOut;
 //			OutParam:the container of return vals and should be inited with the length of 1.
@@ -1233,35 +1482,54 @@ int tgGetData(unsigned char* OutParam){
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgSetData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[264] = {0};
+	unsigned char *PData = NULL;
+	int PDataLen = DataOutLen + 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 	PData[0] = 0xD4;
 	PData[1] = 0x8E;
 	memcpy(&PData[2], DataOut, DataOutLen);
-	int PDataLen = DataOutLen + 2;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
 		return NFC_FAIL;
 	}
-	
+
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
-//tgSetMetaData() Status:untested
+//tgSetMetaData() Status: untested
 //	input:	DataOut: the data to be transfer out from the target;
 //			DataOutLen: the length of DataOut;
 //			OutParam:the container of return vals and should be inited with the length of 1.
@@ -1270,31 +1538,50 @@ int tgSetData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam){
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgSetMetaData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[264] = {0};
+	unsigned char *PData = NULL;
+	int PDataLen = DataOutLen + 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
 	PData[0] = 0xD4;
 	PData[1] = 0x94;
 	memcpy(&PData[2], DataOut, DataOutLen);
-	int PDataLen = DataOutLen + 2;
 
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
 	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
 		return NFC_FAIL;
 	}
-	
+
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 
@@ -1313,27 +1600,49 @@ int tgResponseToInitiator(unsigned char* TgResponse){
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgGetTargetStatus(unsigned char* OutParam){
 	//build TFI + PData
-	unsigned char PData[2] = {0xD4, 0x8A};
+	unsigned char *PData = NULL;
+	int PDataLen = 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+		return NFC_FAIL;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x8A;
 	
 	//transmit data
-	unsigned char Receive[265] = {0};
+	unsigned char *Receive = NULL;
 	int ReceiveLen = 0;
-	ReceiveLen = PN532transceive(PData, 2, Receive);
+	ReceiveLen = PN532transceive(PData, PDataLen, Receive);
 	if(ReceiveLen == NFC_FAIL){
 		return NFC_FAIL;
 	}
-	
+
 	//load info frame into OutParam
 	int OutParamLen = 0;
 	if(Receive[0] == 0x7F){
+		OutParam = osal_mem_alloc(1);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//syntax error
 		OutParam[0] = 0x7F;
 		OutParamLen = 1;
 	}else{
+		OutParam = osal_mem_alloc(ReceiveLen-2);
+		if(OutParam == NULL){
+			//memory allocation unsuccess
+			return NFC_FAIL;
+		}
 		//info frame
 		memcpy(OutParam, &Receive[2], ReceiveLen-2);
 		OutParamLen = ReceiveLen-2;
 	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	osal_mem_free(Receive);
 	return OutParamLen;
 }
 // end of level-2 functions
