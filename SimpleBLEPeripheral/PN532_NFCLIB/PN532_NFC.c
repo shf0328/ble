@@ -36,7 +36,7 @@ unsigned char Pn532PowerMode = STANDBY;
 int PN532InitAsInitiator(void){
 	//TODO: test
 	nfcUARTOpen();
-	unsigned char Output[66] = {0};
+	unsigned char *Output = NULL;
 	int res = inJumpForDEP(0x01, 0x02, 0x00, NULL, NULL, NULL, 0, Output);
 	if(res == NFC_FAIL){
 		//low level error
@@ -45,6 +45,9 @@ int PN532InitAsInitiator(void){
 		//app level error
 		return NFC_FAIL;
 	}
+
+	//deal with junks
+	osal_mem_free(Output);
 	return NFC_SUCCESS;
 }
 
@@ -55,7 +58,7 @@ int PN532InitAsInitiator(void){
 int PN532InitAsTarget(void){
 	//TODO: test
 	nfcUARTOpen();
-	unsigned char Output[66] = {0};
+	unsigned char *Output= NULL;
 	unsigned char MifareParams[6] = {0, 0, 0, 0, 0, 0x40};
 	unsigned char FelicaParams[18] = {0};
 	unsigned char NFCID3t[10] = {0};
@@ -67,6 +70,9 @@ int PN532InitAsTarget(void){
 		//syntax error
 		return NFC_FAIL;
 	}
+
+	//deal with junks
+	osal_mem_free(Output);
 	return NFC_SUCCESS;
 }
 
@@ -78,8 +84,7 @@ int PN532InitAsTarget(void){
 //	output: 失败NFC_FAIL,成功则为DataIn的实际长度.
 int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	//TODO: test
-	unsigned char InputTemp[262] = {0};
-	unsigned char OutputTemp[263] = {0};
+	unsigned char *OutputTemp = NULL;
 	int DataOutLenRest = DataOutLen;
 	int res = 0;
 	int DataInPos = 0;
@@ -99,7 +104,8 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 		if(res == NFC_FAIL){//error handling
 			//low level error
 			return NFC_FAIL;
-		}else if( (OutputTemp[0]&0x3F) != 0){
+		}else if( (OutputTemp[0]&0x3F) != 0){	//deal with junks
+			osal_mem_free(OutputTemp);
 			//app level error
 			return NFC_FAIL;
 		}
@@ -109,8 +115,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 
 	//使用chaining mechanism发送数据
 	while(DataOutLenRest > 262){
-		memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], 262);
-		res = tgSetMetaData(InputTemp, 262, OutputTemp);
+		res = tgSetMetaData(&DataOut[DataOutLen - DataOutLenRest], 262, OutputTemp);
 		if(res == NFC_FAIL){//error handling
 			//low level error
 			return NFC_FAIL;
@@ -120,8 +125,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 		}
 		DataOutLenRest = DataOutLenRest - 262;
 	}
-	memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], DataOutLenRest);
-	res = tgSetData(InputTemp, DataOutLenRest, OutputTemp);
+	res = tgSetData(&DataOut[DataOutLen - DataOutLenRest], DataOutLenRest, OutputTemp);
 	if(res == NFC_FAIL){//error handling
 		//low level error
 		return NFC_FAIL;
@@ -130,6 +134,8 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 		return NFC_FAIL;
 	}
 
+	//deal with junks
+	osal_mem_free(OutputTemp);
 	return DataInPos;
 }
 
@@ -141,16 +147,14 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 //	output: 失败NFC_FAIL,成功则为DataIn的实际长度.
 int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	//TODO: test
-	unsigned char InputTemp[262] = {0};
-	unsigned char OutputTemp[263] = {0};
+	unsigned char *OutputTemp = NULL;
 	int DataOutLenRest = DataOutLen;
 	int res = 0;
 	int DataInPos = 0;
 
 	//使用chaining mechanism发送数据
 	while(DataOutLenRest > 262){
-		memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], 262);
-		res = inDataExchange(0x01 | MI, InputTemp, 262, OutputTemp);
+		res = inDataExchange(0x01 | MI, &DataOut[DataOutLen - DataOutLenRest], 262, OutputTemp);
 		if(res == NFC_FAIL){//error handling
 			//low level error
 			return NFC_FAIL;
@@ -160,8 +164,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 		}
 		DataOutLenRest = DataOutLenRest - 262;
 	}
-	memcpy(InputTemp, &DataOut[DataOutLen - DataOutLenRest], DataOutLenRest);
-	res = inDataExchange(0x01, InputTemp, DataOutLenRest, OutputTemp);
+	res = inDataExchange(0x01, &DataOut[DataOutLen - DataOutLenRest], DataOutLenRest, OutputTemp);
 	if(res == NFC_FAIL){//error handling
 		//low level error
 		return NFC_FAIL;
@@ -185,6 +188,9 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 	}
 	memcpy(&DataIn[DataInPos], &OutputTemp[1], res-1);
 	DataInPos = DataInPos + res - 1;
+
+	//deal with junks
+	osal_mem_free(OutputTemp);
 	return DataInPos;
 }
 
@@ -1095,6 +1101,8 @@ int PN532RegulationTest(unsigned char TxMode){
 //				the order of the output please refer to the User Manual.
 //	output: the length of OutParam.
 int inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, int GiLen, unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 5;
@@ -1215,6 +1223,8 @@ int inPSL(unsigned char Tg, unsigned char BRit, unsigned char BRti){
 //				the OutParam contains a status byte and DataIn bytes.
 //	output: the actual length of OutParam.
 int inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int DataOutLen, unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = DataOutLen + 3;
@@ -1280,6 +1290,8 @@ int inDeselect(unsigned char Tg){
 //				the OutParam contains a status byte and DataIn bytes.
 //	output: the length of OutParam(1).
 int inRelease(unsigned char Tg, unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 3;
@@ -1353,6 +1365,8 @@ int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char* Type){
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam.
 int tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned char* FeliCaParams, unsigned char* NFCID3t, unsigned char LENGt, unsigned char* Gt, unsigned char LENTk, unsigned char* Tk, unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 39 + LENGt + LENTk;
@@ -1426,6 +1440,8 @@ int tgSetGeneralBytes(unsigned char* Gt){
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgGetData(unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 2;
@@ -1481,6 +1497,8 @@ int tgGetData(unsigned char* OutParam){
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgSetData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = DataOutLen + 2;
@@ -1537,6 +1555,8 @@ int tgSetData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam){
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgSetMetaData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = DataOutLen + 2;
@@ -1599,6 +1619,8 @@ int tgResponseToInitiator(unsigned char* TgResponse){
 //				the order of the OutParam please refer to the User Manual.
 //	output: the length of OutParam or NFC_FAIL(-1).
 int tgGetTargetStatus(unsigned char* OutParam){
+	//make sure the OutParam is NULL
+	osal_mem_free(OutParam);
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 2;
