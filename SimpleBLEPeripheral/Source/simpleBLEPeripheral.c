@@ -257,48 +257,48 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   if ( keys & HAL_KEY_UP )
   {  
     HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
-    if(seq<INFO_LENGTH)
-    {
-      seq++;
-    }
-    HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
+    //if(seq<INFO_LENGTH)
+    //{
+    //  seq++;
+    //}
+    //HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
+    int a;
+    a=0;
+    //a=PN532InitAsInitiator();
+    HalLcdWriteStringValue( "ans = ", a, 10, HAL_LCD_LINE_6 );
+    
   }
 
   if ( keys & HAL_KEY_LEFT )
   {
-    HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
-    uint8 temp=0;
-    temp=flash_Rinfo_single_read(seq);
-    HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
+    //HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
     //uint8 temp=0;
-    //temp=flash_Rinfo_Length_get();
+    //temp=flash_Rinfo_single_read(seq);
     //HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
   }
 
   if ( keys & HAL_KEY_RIGHT )
   {
-    HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
-    flash_Rinfo_single_write(seq, value);
-    HalLcdWriteStringValue( "SAVE VALUE = ", value, 10, HAL_LCD_LINE_6 );
-    //flash_Rinfo_Length_set(value);
+    //HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
+    //flash_Rinfo_single_write(seq, value);
     //HalLcdWriteStringValue( "SAVE VALUE = ", value, 10, HAL_LCD_LINE_6 );
   }
   
   if ( keys & HAL_KEY_CENTER )
   {
-    HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
-    uint8 temp[4]={12,13,11,10};
-    flash_Rinfo_short_write(temp, 4);
+    //HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
+    //uint8 temp[4]={12,13,11,10};
+    //flash_Rinfo_short_write(temp, 4);
   }
   
   if ( keys & HAL_KEY_DOWN )
   {
-    HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
-    if(value<INFO_LENGTH)
-    {
-      value++;
-    }
-    HalLcdWriteStringValue( "VALUE = ", value, 10, HAL_LCD_LINE_6 );
+    //HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
+    //if(value<INFO_LENGTH)
+    //{
+    //  value++;
+    //}
+    //HalLcdWriteStringValue( "VALUE = ", value, 10, HAL_LCD_LINE_6 );
   }
 }
 
