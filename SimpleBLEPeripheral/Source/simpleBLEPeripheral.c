@@ -9,7 +9,7 @@
 /*********************************************************************
  * INCLUDES
  */
-
+#include "PN532_NFC.h"
 #include "bcomdef.h"
 #include "OSAL.h"
 #include "OSAL_PwrMgr.h"
@@ -117,9 +117,8 @@
 static uint8 simpleBLEPeripheral_TaskID;   // Task ID for internal task/event processing
 
 //用于测试的一个结构体
-uint8 test[8]={ 1, 2, 3, 4, 5, 6, 7 ,8};
-uint8 test2[50]={0};
-
+uint8 seq=0;
+uint8 value=0;
 
 
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
@@ -254,46 +253,52 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
 
   HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_3 );
 
+  
   if ( keys & HAL_KEY_UP )
   {  
     HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
-
-    //按键次数累加
-    test2[0]++;
-
-    // 把数据结构保存到flash
-    flash_Rinfo_all_write(test2); 
-
-    // 显示按键次数
-    HalLcdWriteStringValue("KeyCount = ", test2[0], 10, HAL_LCD_LINE_6 );
-
+    //if(seq<INFO_LENGTH)
+    //{
+    //  seq++;
+    //}
+    //HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
+    int a;
+    a=0;
+    //a=PN532InitAsInitiator();
+    HalLcdWriteStringValue( "ans = ", a, 10, HAL_LCD_LINE_6 );
+    
   }
 
   if ( keys & HAL_KEY_LEFT )
   {
-    HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
-    flash_pwd_delete();
+    //HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
+    //uint8 temp=0;
+    //temp=flash_Rinfo_single_read(seq);
+    //HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
   }
 
   if ( keys & HAL_KEY_RIGHT )
   {
-    HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
+    //HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
+    //flash_Rinfo_single_write(seq, value);
+    //HalLcdWriteStringValue( "SAVE VALUE = ", value, 10, HAL_LCD_LINE_6 );
   }
   
   if ( keys & HAL_KEY_CENTER )
   {
-    HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
-
+    //HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
+    //uint8 temp[4]={12,13,11,10};
+    //flash_Rinfo_short_write(temp, 4);
   }
   
   if ( keys & HAL_KEY_DOWN )
   {
-    HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
-
-	flash_pwd_read(test); 
-
-    // 显示按键次数
-    HalLcdWriteStringValue("KeyCount = ", test[1], 10, HAL_LCD_LINE_6 );
+    //HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
+    //if(value<INFO_LENGTH)
+    //{
+    //  value++;
+    //}
+    //HalLcdWriteStringValue( "VALUE = ", value, 10, HAL_LCD_LINE_6 );
   }
 }
 
@@ -495,16 +500,10 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
     // Start Bond Manager
     VOID GAPBondMgr_Register( &simpleBLEPeripheral_BondMgrCBs );
 
-	osal_memset(test, 0, 8);
+	
     flash_pwd_init();
 	flash_info_init();
-    flash_Rinfo_all_read(test2);
     // 显示按键次数
-    HalLcdWriteStringValue("KeyCount = ", test[0], 10, HAL_LCD_LINE_6 );
-
-
-
-
 
     // Set timer for first periodic event
     osal_start_timerEx( simpleBLEPeripheral_TaskID, SBP_PERIODIC_EVT, SBP_PERIODIC_EVT_PERIOD );
