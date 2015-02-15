@@ -157,21 +157,98 @@ extern uint8 flash_Tinfo_single_write(uint8 seq, uint8 value);
 
 
 
-
+/**************************************
+* uint8 flash_Tinfo_Length_init(void）
+* 在flash内部初始化发送数据的长度存储位
+**************************************/
 extern uint8 flash_Tinfo_Length_init(void);
 
+
+
+
+/**************************************
+* uint8 flash_Tinfo_Length_set(uint8 length)
+* 在flash内部写入发送数据的长度存储位
+**************************************/
 extern uint8 flash_Tinfo_Length_set(uint8 length);
 
+
+
+
+
+/**************************************
+* uint8 flash_Tinfo_Length_get(void)
+* 在flash内部读取发送数据的长度存储位
+**************************************/
 extern uint8 flash_Tinfo_Length_get(void);
 
+
+
+
+
+/**************************************
+* uint8 flash_Tinfo_short_write(void *pBuf, uint8 len)
+* 在flash内部发送数据区域的接收数据的长度为s
+* 则向s后面写入长度为len的数组，地址是pBuf
+* 若超过存储长度的数据不写
+**************************************/
 extern uint8 flash_Tinfo_short_write(void *pBuf, uint8 len);
 
+
+/**************************************
+* uint8 flash_Tinfo_short_write(void *pBuf, uint8 seq)
+* 在flash内部发送数据区域的第seq处开始为第0位，向后（包括seq）读取长度5的数组
+* 若超过存储长度，则在数组后补零
+* 赋值给pBuf处
+**************************************/
+extern uint8 flash_Tinfo_short_read(void *pBuf, uint8 seq);
+
+
+
+/**************************************
+* uint8 flash_Rinfo_Length_init(void）
+* 在flash内部初始化发送数据的长度存储位
+**************************************/
 extern uint8 flash_Rinfo_Length_init(void);
 
+
+
+
+
+/**************************************
+* uint8 flash_Rinfo_Length_set(uint8 length)
+* 在flash内部写入接收数据的长度存储位
+**************************************/
 extern uint8 flash_Rinfo_Length_set(uint8 length);
 
+
+
+
+
+/**************************************
+* uint8 flash_Rinfo_Length_get(void)
+* 在flash内部读取接收数据的长度存储位
+**************************************/
 extern uint8 flash_Rinfo_Length_get(void);
 
+
+
+
+/**************************************
+* uint8 flash_Rinfo_short_write(void *pBuf, uint8 len)
+* 在flash内部接收数据区域的接收数据的长度为s
+* 则向s后面写入长度为len的数组，地址是pBuf
+* 若超过存储长度的数据不写
+**************************************/
 extern uint8 flash_Rinfo_short_write(void *pBuf, uint8 len);
 
 
+
+
+/**************************************
+* uint8 flash_Rinfo_short_write(void *pBuf, uint8 seq)
+* 在flash内部接收数据区域的第seq处开始为第0位，向后（包括seq）读取长度5的数组
+* 若超过存储长度，则在数组后补零
+* 赋值给pBuf处
+**************************************/
+extern uint8 flash_Rinfo_short_read(void *pBuf, uint8 seq);
