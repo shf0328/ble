@@ -251,50 +251,65 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
 
   VOID shift;  // Intentionally unreferenced parameter
 
-  HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_3 );
+  //HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_3 );
 
   
   if ( keys & HAL_KEY_UP )
   {  
-    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+    /*HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
     if(seq<INFO_LENGTH)
     {
       seq++;
     }
     HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
+    */
+    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+    int a;
+    a=PN532InitAsInitiator();
   }
 
   if ( keys & HAL_KEY_LEFT )
   {
-    HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
+    /*HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
     uint8 temp=0;
     temp=flash_Rinfo_single_read(seq);
     HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
+    */
+    int temp=11;
+    temp=nfcUARTOpen();
+    temp=PN532InitAsInitiator();
+    if(temp==0)
+    {
+      HalLcdWriteString( "OK", HAL_LCD_LINE_8 );
+    }
   }
 
   if ( keys & HAL_KEY_RIGHT )
   {
-    HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
+    /*HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
     uint8 temp[5]={0};
     flash_Rinfo_short_read(temp, 8);
     HalLcdWriteStringValue( "SAVE VALUE = ", temp[3], 10, HAL_LCD_LINE_6 );
+    */
   }
   
   if ( keys & HAL_KEY_CENTER )
   {
-    HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
+    /*HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
     uint8 temp[4]={12,13,11,10};
     flash_Rinfo_short_write(temp, 4);
+    */
   }
   
   if ( keys & HAL_KEY_DOWN )
   {
-    HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
+    /*HalLcdWriteString( "HAL_KEY_DOWN", HAL_LCD_LINE_5 );
     if(value<INFO_LENGTH)
     {
       value++;
     }
     HalLcdWriteStringValue( "VALUE = ", value, 10, HAL_LCD_LINE_6 );
+    */
   }
 }
 

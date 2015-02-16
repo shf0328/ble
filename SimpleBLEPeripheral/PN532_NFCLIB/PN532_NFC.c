@@ -337,13 +337,14 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 }
 
 // DelayMs() Status: untested
-// desc:		进行毫秒级延时,仅用于CC254x平台.
-//	input:		msec: 延时毫秒数
+// desc:		进行延时,仅用于CC254x平台.
+//	input:		delay: 延时值,并不是ms数
 //	output: 	void.
-void DelayMs(unsigned int msec){
-	unsigned int i,j;
-	for(i=0; i<msec; i++)
-		for(j=0; j<535; j++);
+void DelayMs(unsigned int delay){
+	unsigned int i,j,k;
+	for(k=0; k<1000; k++)
+		for(i=0; i<delay; i++)
+			for(j=0; j<535; j++);
 }
 
 void UARTcallback(unsigned char task_id, unsigned int events){
@@ -359,7 +360,7 @@ void UARTcallback(unsigned char task_id, unsigned int events){
 // desc:	init and open UART.
 // input:	void
 // output:	void
-void nfcUARTOpen(){
+int nfcUARTOpen(){
 	/* obsolete init process
 	PERCFG &= ~0x01;	//peripheral control set USART0 I/O location alt.1
 	//gpio configuration
@@ -404,7 +405,13 @@ void nfcUARTOpen(){
 	halUARTCfg.callBackFunc =  (halUARTCBack_t)UARTcallback;
 	HalUARTInit();
 	//TODO: change the UART port
-	HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
+	//HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
+        int res = HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
+	if(res == HAL_UART_SUCCESS){
+		return NFC_SUCCESS;
+	}else{
+		return NFC_FAIL;
+	}
 #endif
 }
 
@@ -520,8 +527,9 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 		case LOWVBAT: {
 			// PN532 wakeup.
 			// According to PN532 application note, C106 appendix: to go out Low Vbat mode and enter in normal mode we need to send a SAMConfiguration command
-			unsigned char pn532_wakeup_outLVbat_preamble[26] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
-			res = UARTsend(pn532_wakeup_outLVbat_preamble, 26);
+			
+                        unsigned char pn532_wakeup_outLVbat_preamble[40] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
+			res = UARTsend(pn532_wakeup_outLVbat_preamble, 40);
 			if(res == NFC_FAIL){
 #ifdef LINUX
 		printf("LOWVBSendError\n");
@@ -535,7 +543,7 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 #ifdef LINUX
 			usleep(5000);
 #else
-			DelayMs(5);
+			DelayMs(300);
 #endif
 			//receive ACK frame
 			RetVal = PN532receiveFrame();
@@ -927,7 +935,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen){
 #ifdef LINUX
 	usleep(10000);
 #else
-	DelayMs(10);
+	DelayMs(300);
 #endif
 
 	//receive ACK frame
@@ -955,7 +963,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen){
 #ifdef LINUX
 	sleep(1);
 #else
-	DelayMs(1000);
+	DelayMs(100);
 #endif
 
 	//receive info frame

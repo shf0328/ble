@@ -6,6 +6,8 @@
 #else
 	#include "hal_uart.h"
 	#include "OSAL_Memory.h"
+	#include "OSAL.h"
+        #include "hal_lcd.h"
 #endif
 //---------------------------------------------------------------------------
 // Global Variables Declarations
@@ -13,6 +15,9 @@
 #ifdef LINUX
 	int fd;
 #endif
+
+#define INITIATOR 0
+#define TARGET 1
 
 #define NFC_SUCCESS 0
 #define NFC_FAIL -1
@@ -54,12 +59,21 @@
 #define ERROR_NFCID3_MISMATCH			0x2C
 #define ERROR_OVERCURRENT				0x2D
 #define ERROR_NAD_MISSING				0x2E
+//---------------------------------------------------------------------------
+// type definitions
+// retVal *RetVal = (retVal *) malloc (sizeof (retVal) + /*the length of Rcv[]*/);
+typedef struct{
+	int length;
+	unsigned char Rcv[];
+} retVal;
 
 //---------------------------------------------------------------------------
 // PN532 communication External References & Function Declarations:
-// L4 functions
-extern int PN532InitAsInitiator();
-extern int PN532InitAsTarget();
+// L3 functions
+extern int NfcInit(void);
+extern int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
+extern int PN532InitAsInitiator(void);
+extern int PN532InitAsTarget(void);
 extern int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
 extern int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
 extern void UARTcallback(unsigned char task_id, unsigned int events);
@@ -67,9 +81,9 @@ extern void UARTcallback(unsigned char task_id, unsigned int events);
 //---------------------------------------------------------------------------
 // L0 functions
 //
-extern void nfcUARTOpen();
+extern int nfcUARTOpen();
 extern int UARTsend(unsigned char *pBuffer, int length);
-extern int UARTreceive(unsigned char *pBuffer, int length);
+extern retVal* UARTreceive(int length);
 extern int UARTflushRxBuf(void);
 
 //---------------------------------------------------------------------------
@@ -78,51 +92,51 @@ extern int UARTflushRxBuf(void);
 extern int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN);
 extern int PN532sendNACKFrame(void);
 extern int PN532sendACKFrame(void);
-extern int PN532receiveFrame(unsigned char* Receive);
-extern int PN532transceive(unsigned char* Input, int InputLen, unsigned char* Output);
+extern retVal* PN532receiveFrame(void);
+extern retVal* PN532transceive(unsigned char* Input, int InputLen);
 
 //---------------------------------------------------------------------------
 // L2 functions
 // Miscellaneous Commands
-extern int PN532diagnose(unsigned char NumTst, unsigned char* InParam,unsigned int InParamLen, unsigned char* OutParam);
-extern int PN532getFirmwareVersion(unsigned char* OutParam);
-extern int PN532getGeneralStatus(unsigned char* OutParam);
-extern int PN532readRegister(int* ADDR, unsigned int ADDRLen, unsigned char* VAL);
+extern retVal* PN532diagnose(unsigned char NumTst, unsigned char* InParam,unsigned int InParamLen);
+extern retVal* PN532getFirmwareVersion(void);
+extern retVal* PN532getGeneralStatus(void);
+extern retVal* PN532readRegister(int* ADDR, unsigned int ADDRLen);
 extern int PN532writeRegister(int* ADDR, unsigned int ADDRLen, unsigned char* VAL);
-extern int PN532readGPIO(unsigned char* GpioVal);
+extern retVal* PN532readGPIO(void);
 extern int PN532writeGPIO(unsigned char P3, unsigned char P7);
 extern int PN532setSerialBaudRate(unsigned char BR);
-extern int PN532setParameters(unsigned char Flags, unsigned char* OutParam);
+extern retVal* PN532setParameters(unsigned char Flags);
 extern int PN532SAMconfiguration(unsigned char Mode, unsigned char Timeout, unsigned char* IRQ);
-extern int PN532powerDown(unsigned char WakeUpEnable, unsigned char* GenarateIRQ, unsigned char* OutParam);
-extern int PN532RFConfiguration(unsigned char CfgItem, unsigned char* ConfigurationData, int CfgDataLen, unsigned char* OutParam);
+extern retVal* PN532powerDown(unsigned char WakeUpEnable, unsigned char* GenarateIRQ);
+extern retVal* PN532RFConfiguration(unsigned char CfgItem, unsigned char* ConfigurationData, int CfgDataLen);
 extern int PN532RegulationTest(unsigned char TxMode);
 
 //---------------------------------------------------------------------------
 // Initiator Commands
 //
-extern int inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi,int GiLen, unsigned char* OutParam);
-extern int inJumpForPSL(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, unsigned int GiLen, unsigned char* OutParam);
+extern retVal* inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, int GiLen);
+extern retVal* inJumpForPSL(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, unsigned int GiLen);
 extern int inListPassiveTarget(unsigned char MaxTg, unsigned char BrTy, unsigned char* InitiatorData);
 extern int inATR(unsigned char Tg, unsigned char Next, unsigned char* NFCID3i, unsigned char* Gi);
 extern int inPSL(unsigned char Tg, unsigned char BRit, unsigned char BRti);
-extern int inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int DataOutLen, unsigned char* OutParam);
+extern retVal* inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int DataOutLen);
 extern int inCommunicateThru(unsigned char* DataOut);
 extern int inDeselect(unsigned char Tg);
-extern int inRelease(unsigned char Tg, unsigned char* OutParam);
+extern retVal* inRelease(unsigned char Tg);
 extern int inSelect(unsigned char Tg);
 extern int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char* Type);
 
 //---------------------------------------------------------------------------
 // Target Commands
 //
-extern int tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned char* FeliCaParams, unsigned char* NFCID3t, unsigned char LENGt, unsigned char* Gt, unsigned char LENTk, unsigned char* Tk, unsigned char* OutParam);
+extern retVal* tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned char* FeliCaParams, unsigned char* NFCID3t, unsigned char LENGt, unsigned char* Gt, unsigned char LENTk, unsigned char* Tk);
 extern int tgSetGeneralBytes(unsigned char* Gt);
-extern int tgGetData(unsigned char* OutParam);
-extern int tgSetData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam);
-extern int tgSetMetaData(unsigned char* DataOut, int DataOutLen, unsigned char* OutParam);
+extern retVal* tgGetData();
+extern retVal* tgSetData(unsigned char* DataOut, int DataOutLen);
+extern retVal* tgSetMetaData(unsigned char* DataOut, int DataOutLen);
 extern int tgGetInitiatorCommand(void);
 extern int tgResponseToInitiator(unsigned char* TgResponse);
-extern int tgGetTargetStatus(unsigned char* OutParam);
+extern retVal* tgGetTargetStatus(void);
 
 #endif
