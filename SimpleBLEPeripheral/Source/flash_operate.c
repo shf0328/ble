@@ -330,8 +330,8 @@ uint8 flash_Tinfo_short_write(void *pBuf, uint8 len)
 
 
 /**************************************
-* uint8 flash_Tinfo_short_write(void *pBuf, uint8 seq)
-* 在flash内部发送数据区域的第seq处开始为第0位，向后（包括seq）读取长度5的数组
+* uint8 flash_Tinfo_short_read(void *pBuf, uint8 seq)
+* 在flash内部发送数据区域的第seq处开始为第0位，向后（包括seq）读取长度10的数组
 * 若超过存储长度，则在数组后补零
 * 赋值给pBuf处
 **************************************/
@@ -340,11 +340,11 @@ uint8 flash_Tinfo_short_read(void *pBuf, uint8 seq)
   uint8 inMem[INFO_LENGTH]={0};
   osal_snv_read(0x84, INFO_LENGTH, inMem);
   
-  uint8 temp[5]={0};
+  uint8 temp[10]={0};
   
   
   uint8 i=0;
-  for(i=0;i<5;i++)
+  for(i=0;i<10;i++)
   {
     if((seq+i)<INFO_LENGTH)
     {
@@ -355,7 +355,7 @@ uint8 flash_Tinfo_short_read(void *pBuf, uint8 seq)
     }
   }
   
-  for(i=0;i<5;i++)
+  for(i=0;i<10;i++)
   {
     ((uint8 *)pBuf)[i]=temp[i];
   }
@@ -454,7 +454,7 @@ uint8 flash_Rinfo_short_write(void *pBuf, uint8 len)
 }
 
 /**************************************
-* uint8 flash_Rinfo_short_write(void *pBuf, uint8 seq)
+* uint8 flash_Rinfo_short_read(void *pBuf, uint8 seq)
 * 在flash内部接收数据区域的第seq处开始为第0位，向后（包括seq）读取长度5的数组
 * 若超过存储长度，则在数组后补零
 * 赋值给pBuf处
@@ -464,11 +464,11 @@ uint8 flash_Rinfo_short_read(void *pBuf, uint8 seq)
   uint8 inMem[INFO_LENGTH]={0};
   osal_snv_read(0x84, INFO_LENGTH, inMem);
   
-  uint8 temp[5]={0};
+  uint8 temp[10]={0};
   
   
   uint8 i=0;
-  for(i=0;i<5;i++)
+  for(i=0;i<10;i++)
   {
     if((seq+i)<INFO_LENGTH)
     {
@@ -479,7 +479,7 @@ uint8 flash_Rinfo_short_read(void *pBuf, uint8 seq)
     }
   }
   
-  for(i=0;i<5;i++)
+  for(i=0;i<10;i++)
   {
     ((uint8 *)pBuf)[i]=temp[i];
   }

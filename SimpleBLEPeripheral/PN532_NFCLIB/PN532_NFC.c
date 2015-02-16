@@ -935,7 +935,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen){
 #ifdef LINUX
 	usleep(10000);
 #else
-	DelayMs(300);
+	DelayMs(10);
 #endif
 
 	//receive ACK frame
@@ -963,7 +963,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen){
 #ifdef LINUX
 	sleep(1);
 #else
-	DelayMs(100);
+	DelayMs(1000);
 #endif
 
 	//receive info frame
