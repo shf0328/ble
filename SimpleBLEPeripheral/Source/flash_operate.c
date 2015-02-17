@@ -133,7 +133,7 @@ uint8 flash_Tinfo_all_read(void *pBuf)
 }
 
 /**************************************
-* uint8 flash_Tinfo_all_read(void *pBuf)
+* uint8 flash_Tinfo_all_write(void *pBuf)
 * 在flash内部发送数据的全部写入
 * 参数是一个长度INFO_LENGTH的数组地址
 * 返回值是osal flash操作的值，具体参见API文档
@@ -145,7 +145,7 @@ uint8 flash_Rinfo_all_write(void *pBuf)
 }
 
 /**************************************
-* uint8 flash_Tinfo_all_read(void *pBuf)
+* uint8 flash_Tinfo_all_write(void *pBuf)
 * 在flash内部发送数据的全部写入
 * 参数是一个长度INFO_LENGTH的数组地址
 * 返回值是osal flash操作的值，具体参见API文档

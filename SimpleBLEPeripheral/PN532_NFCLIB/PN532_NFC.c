@@ -963,7 +963,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen){
 #ifdef LINUX
 	sleep(1);
 #else
-	DelayMs(1000);
+	DelayMs(500);
 #endif
 
 	//receive info frame

@@ -256,16 +256,16 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   
   if ( keys & HAL_KEY_UP )
   {  
-    /*HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
     if(seq<INFO_LENGTH)
     {
       seq++;
     }
     HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
-    */
-    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
-    int a;
-    a=PN532InitAsInitiator();
+    
+    //HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+    //int a;
+    //a=PN532InitAsInitiator();
   }
 
   if ( keys & HAL_KEY_LEFT )
@@ -275,13 +275,13 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     temp=flash_Rinfo_single_read(seq);
     HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
     */
-    int temp=11;
-    temp=nfcUARTOpen();
-    temp=PN532InitAsInitiator();
-    if(temp==0)
-    {
-      HalLcdWriteString( "OK", HAL_LCD_LINE_8 );
-    }
+      int temp=11;
+      temp=PN532InitAsTarget();
+  
+      if(temp==0)
+      {
+        HalLcdWriteString( "OK", HAL_LCD_LINE_8 );
+      }
   }
 
   if ( keys & HAL_KEY_RIGHT )
@@ -291,6 +291,18 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     flash_Rinfo_short_read(temp, 8);
     HalLcdWriteStringValue( "SAVE VALUE = ", temp[3], 10, HAL_LCD_LINE_6 );
     */
+    uint8 a[50]={0};
+    uint8 b[50]={0};
+    int temp=11;
+    temp=PN532TargetDataExchange(a,50,b);
+    
+    if(temp==0)
+    {
+        HalLcdWriteString( "OK", HAL_LCD_LINE_8 );
+        HalLcdWriteStringValue( "read VALUE = ", b[1], 10, HAL_LCD_LINE_6 );
+    }
+    HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_5 );
+    
   }
   
   if ( keys & HAL_KEY_CENTER )
@@ -299,6 +311,9 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     uint8 temp[4]={12,13,11,10};
     flash_Rinfo_short_write(temp, 4);
     */
+    uint8 temp=0;
+    temp=flash_Rinfo_single_read(seq);
+    HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
   }
   
   if ( keys & HAL_KEY_DOWN )
@@ -734,6 +749,8 @@ static void performPeriodicTask( void )
      */
     SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &valueToCopy);
   }
+ 
+  
 }
 
 /*********************************************************************
