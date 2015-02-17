@@ -7,6 +7,7 @@
 	#include "hal_uart.h"
 	#include "OSAL_Memory.h"
 	#include "OSAL.h"
+        #include "hal_lcd.h"
 #endif
 //---------------------------------------------------------------------------
 // Global Variables Declarations
@@ -80,7 +81,7 @@ extern void UARTcallback(unsigned char task_id, unsigned int events);
 //---------------------------------------------------------------------------
 // L0 functions
 //
-extern void nfcUARTOpen();
+extern int nfcUARTOpen();
 extern int UARTsend(unsigned char *pBuffer, int length);
 extern retVal* UARTreceive(int length);
 extern int UARTflushRxBuf(void);
