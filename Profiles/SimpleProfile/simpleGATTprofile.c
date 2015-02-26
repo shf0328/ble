@@ -18,9 +18,9 @@
 #include "gatt_uuid.h"
 #include "gattservapp.h"
 #include "gapbondmgr.h"
-
+#include "hal_lcd.h"
 #include "simpleGATTprofile.h"
-
+#include "flash_operate.h"
 /*********************************************************************
  * MACROS
  */
@@ -38,6 +38,7 @@
 /*********************************************************************
  * GLOBAL VARIABLES
  */
+ extern uint8 notification;
 // Simple GATT Profile Service UUID: 0xFFF0
 CONST uint8 simpleProfileServUUID[ATT_BT_UUID_SIZE] =
 { 
@@ -105,7 +106,7 @@ CONST uint8 simpleProfileData2UUID[ATT_BT_UUID_SIZE] =
 /*********************************************************************
  * EXTERNAL VARIABLES
  */
-
+extern uint8 identity;
 /*********************************************************************
  * EXTERNAL FUNCTIONS
  */
@@ -113,7 +114,7 @@ CONST uint8 simpleProfileData2UUID[ATT_BT_UUID_SIZE] =
 /*********************************************************************
  * LOCAL VARIABLES
  */
-
+uint8 start = 0;
 static simpleProfileCBs_t *simpleProfile_AppCBs = NULL;
 
 /*********************************************************************
@@ -476,7 +477,7 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
 
 static void simpleProfile_HandleConnStatusCB( uint16 connHandle, uint8 changeType );
 
-
+static void confirmIdentity(void);
 /*********************************************************************
  * PROFILE CALLBACKS
  */
@@ -721,7 +722,7 @@ bStatus_t SimpleProfile_GetParameter( uint8 param, void *value )
       break;      
       
     case SIMPLEPROFILE_CHAR_PWD_SAVED:
-      VOID osal_memcpy( value, simpleProfilePwdSaved, SIMPLEPROFILE_CHAR_PWD_SAVED );
+      VOID osal_memcpy( value, simpleProfilePwdSaved, SIMPLEPROFILE_CHAR_PWD_SAVED_LEN);
       break;  
       
     case SIMPLEPROFILE_CHAR_PWD_IN_DEVICE:
@@ -781,29 +782,31 @@ static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr
   {
     // 16-bit UUID
     uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
-    switch ( uuid )
+    if(identity == 1)
     {
+    	switch ( uuid )
+    	{
       // No need for "GATT_SERVICE_UUID" or "GATT_CLIENT_CHAR_CFG_UUID" cases;
       // gattserverapp handles those reads
-
       // characteristics 1 and 2 have read permissions
       // characteritisc 3 does not have read permissions; therefore it is not
       //   included here
       // characteristic 4 does not have read permissions, but because it
       //   can be sent as a notification, it is included here
-      case SIMPLEPROFILE_CHAR1_UUID:
-      case SIMPLEPROFILE_CHAR2_UUID:
-      case SIMPLEPROFILE_CHAR4_UUID:
+      
+      	case SIMPLEPROFILE_CHAR1_UUID:
+      	case SIMPLEPROFILE_CHAR2_UUID:  	
+      	case SIMPLEPROFILE_CHAR4_UUID:
         *pLen = 1;
         pValue[0] = *pAttr->pValue;
         break;
 
-      case SIMPLEPROFILE_CHAR5_UUID:
+      	case SIMPLEPROFILE_CHAR5_UUID:
         *pLen = SIMPLEPROFILE_CHAR5_LEN;
         VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR5_LEN );
         break;
         
-      case SIMPLEPROFILE_CHAR_PWD_SAVED_UUID:
+      	case SIMPLEPROFILE_CHAR_PWD_SAVED_UUID:
         *pLen = SIMPLEPROFILE_CHAR_PWD_SAVED_LEN;
         VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR_PWD_SAVED_LEN );
         break;  
@@ -817,22 +820,42 @@ static uint8 simpleProfile_ReadAttrCB( uint16 connHandle, gattAttribute_t *pAttr
 
 	case SIMPLEPROFILE_CHAR_DATA1_UUID:
         *pLen = SIMPLEPROFILE_CHAR_DATA1_LEN;
+		flash_Rinfo_short_read(pAttr->pValue, start );
+		start+=10;//这里不用溢出判断，flash_Rinfo_short_read函数里面有判断
         VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR_DATA1_LEN );
+		//读出数据包成功
+		notification = 5;
+		SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &notification);
         break; 
 
-	case SIMPLEPROFILE_CHAR_DATA2_UUID:
+/*	case SIMPLEPROFILE_CHAR_DATA2_UUID:
         *pLen = SIMPLEPROFILE_CHAR_DATA2_LEN;
+		flash_Rinfo_short_read(pAttr->pValue, 10);
         VOID osal_memcpy( pValue, pAttr->pValue, SIMPLEPROFILE_CHAR_DATA2_LEN );
         break; 
-
-
-	  
+*/	  
       default:
         // Should never get here! (characteristics 3 and 4 do not have read permissions)
         *pLen = 0;
         status = ATT_ERR_ATTR_NOT_FOUND;
         break;
-    }
+    	}}
+	else if (identity==0)
+	{
+		switch ( uuid )
+    		{
+    		case SIMPLEPROFILE_CHAR4_UUID:
+        	*pLen = 1;
+        	pValue[0] = *pAttr->pValue;
+        	break;
+
+		default:
+             // Should never get here! (characteristics 3 and 4 do not have read permissions)
+             *pLen = 0;
+               status =ATT_ERR_READ_NOT_PERMITTED;
+              break;
+    		}
+	}
   }
   else
   {
@@ -874,12 +897,13 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
   {
     // 16-bit UUID
     uint16 uuid = BUILD_UINT16( pAttr->type.uuid[0], pAttr->type.uuid[1]);
+    if(identity==1)
+    {
     switch ( uuid )
     {
       case SIMPLEPROFILE_CHAR1_UUID:
       case SIMPLEPROFILE_CHAR3_UUID:
-
-        //Validate the value
+        // Validate the value
         // Make sure it's not a blob oper
         if ( offset == 0 )
         {
@@ -932,11 +956,16 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
         if ( status == SUCCESS )
         {
           VOID osal_memcpy( pAttr->pValue, pValue, SIMPLEPROFILE_CHAR_PWD_SAVED_LEN );
+	   flash_pwd_write(pAttr->pValue); 
+
+	  #if (defined HAL_LCD) && (HAL_LCD == TRUE)
+      		HalLcdWriteString( "ChangePwdSuccessful",HAL_LCD_LINE_3);
+         #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+
           notifyApp = SIMPLEPROFILE_CHAR_PWD_SAVED_LEN;
         }
              
         break;
-
 
 
 	case SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_UUID:
@@ -960,6 +989,10 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
         {
           VOID osal_memcpy( pAttr->pValue, pValue, SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN );
           notifyApp = SIMPLEPROFILE_CHAR_PWD_IN_DEVICE;
+           confirmIdentity();	
+		#if (defined HAL_LCD) && (HAL_LCD == TRUE)
+        	HalLcdWriteStringValue( "Idendity:", (uint16)(identity), 10,  HAL_LCD_LINE_3 );
+      		#endif // (defined HAL_LCD) && (HAL_LCD == TRUE)  
         }
              
         break;
@@ -986,11 +1019,18 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
         {
           VOID osal_memcpy( pAttr->pValue, pValue, SIMPLEPROFILE_CHAR_DATA1_LEN );
           notifyApp = SIMPLEPROFILE_CHAR_DATA1;
+          flash_Tinfo_short_write(pValue, SIMPLEPROFILE_CHAR_DATA1_LEN );
+	   //写入数据成功
+	   #if (defined HAL_LCD) && (HAL_LCD == TRUE)
+      		HalLcdWriteString( "WriteInSuccessful",HAL_LCD_LINE_3);
+         #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+          notification = 3;
+	   SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &notification);
         }
              
         break;
 
-	case SIMPLEPROFILE_CHAR_DATA2_UUID:
+/*	case SIMPLEPROFILE_CHAR_DATA2_UUID:
 
         //Validate the value
         // Make sure it's not a blob oper
@@ -1014,21 +1054,60 @@ static bStatus_t simpleProfile_WriteAttrCB( uint16 connHandle, gattAttribute_t *
         }
              
         break;
-
-
-
-
-	
+	*/ 
       case GATT_CLIENT_CHAR_CFG_UUID:
         status = GATTServApp_ProcessCCCWriteReq( connHandle, pAttr, pValue, len,
                                                  offset, GATT_CLIENT_CFG_NOTIFY );
+		#if (defined HAL_LCD) && (HAL_LCD == TRUE)
+          		HalLcdWriteString( "Notifaction ON", HAL_LCD_LINE_3);
+        	#endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+		
         break;
-        
+       
       default:
         // Should never get here! (characteristics 2 and 4 do not have write permissions)
         status = ATT_ERR_ATTR_NOT_FOUND;
         break;
-    }
+      }
+      }else if (identity==0){
+      switch(uuid)
+      	{
+	case SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_UUID:
+
+        //Validate the value
+        // Make sure it's not a blob oper
+        if ( offset == 0 )
+        {
+          if ( len != SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN )
+          {
+            status = ATT_ERR_INVALID_VALUE_SIZE;
+          }
+        }
+        else
+        {
+          status = ATT_ERR_ATTR_NOT_LONG;
+        }
+        
+        //Write the value
+        if ( status == SUCCESS )
+        {
+          VOID osal_memcpy( pAttr->pValue, pValue, SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN );
+          notifyApp = SIMPLEPROFILE_CHAR_PWD_IN_DEVICE;
+		   confirmIdentity();	
+		#if (defined HAL_LCD) && (HAL_LCD == TRUE)
+        	HalLcdWriteStringValue( "Idendity:", (uint16)(identity), 10,  HAL_LCD_LINE_3 );
+      		#endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+	  
+        }
+             
+        break;
+
+	 default:
+        // Should never get here! (characteristics 2 and 4 do not have write permissions)
+        status = ATT_ERR_WRITE_NOT_PERMITTED;
+        break;
+      	}
+  }
   }
   else
   {
@@ -1070,6 +1149,27 @@ static void simpleProfile_HandleConnStatusCB( uint16 connHandle, uint8 changeTyp
   }
 }
 
+static void confirmIdentity(void)
+{
+	uint8* InputPWD;
+	InputPWD = osal_mem_alloc(SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN);
+	SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR_PWD_IN_DEVICE, InputPWD);
 
+	uint8* SavedPWD;
+	SavedPWD = osal_mem_alloc(SIMPLEPROFILE_CHAR_PWD_SAVED_LEN);
+	SimpleProfile_GetParameter(SIMPLEPROFILE_CHAR_PWD_SAVED, SavedPWD);
+
+	uint8 status;
+	status = osal_memcmp(InputPWD, SavedPWD, SIMPLEPROFILE_CHAR_PWD_SAVED_LEN);
+
+// 修改权限
+	if(status==TRUE)
+       	  identity=1;
+	else if(status==FALSE)
+	  	 identity=0;
+//通知主机	
+	notification = identity;
+	SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &notification);
+}
 /*********************************************************************
 *********************************************************************/

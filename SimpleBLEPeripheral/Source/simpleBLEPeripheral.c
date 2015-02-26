@@ -106,6 +106,7 @@
 /*********************************************************************
  * EXTERNAL VARIABLES
  */
+ extern uint8 start;
 
 /*********************************************************************
  * EXTERNAL FUNCTIONS
@@ -115,11 +116,34 @@
  * LOCAL VARIABLES
  */
 static uint8 simpleBLEPeripheral_TaskID;   // Task ID for internal task/event processing
-
+//按键回调函数里的"seq"
+uint8 s=0;
+static uint8 i =0;
 //用于测试的一个结构体
 uint8 seq=0;
 uint8 value=0;
 
+/*********************************************************************
+特征值                 UUID    初始权限	         验证后权限	
+主机命令位	FFF1	                NONE	              	Read&Write	
+通知主机位	FFF4	              ReadOnly                    Read&Write
+机器储存密码	FFF6	          	   NONE	              	Read&Write	
+手机写入密码	FFF7	              WriteOnly	              Read&Write	
+数据块1	             FFF8	                 NONE	               	Read&Write
+数据块2	             FFF9	                 NONE	               	Read&Write	
+*/
+uint8 identity= 0;  // 0为初始权限，1为验证后权限
+
+/*********************************************************************
+通知
+0 密码配对不成功，无权限
+1 密码配对成功，获得权限
+2 从机准备写入
+3 写入数据包成功
+4 从机准备读出
+5 读出数据包成功
+*/
+uint8 notification= 0;
 
 static gaprole_States_t gapProfileState = GAPROLE_INIT;
 
@@ -194,6 +218,7 @@ static void peripheralStateNotificationCB( gaprole_States_t newState );
 static void performPeriodicTask( void );
 static void simpleProfileChangeCB( uint8 paramID );
 
+
 #if defined( CC2540_MINIDK )
 static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys );
 #endif
@@ -256,32 +281,24 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   
   if ( keys & HAL_KEY_UP )
   {  
-    /*HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
+    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
     if(seq<INFO_LENGTH)
     {
       seq++;
     }
     HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
-    */
-    HalLcdWriteString( "HAL_KEY_UP", HAL_LCD_LINE_5 );
-    int a;
-    a=PN532InitAsInitiator();
+    
+    
   }
 
   if ( keys & HAL_KEY_LEFT )
   {
-    /*HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
+    HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
     uint8 temp=0;
-    temp=flash_Rinfo_single_read(seq);
+    temp=flash_Tinfo_single_read(seq);
     HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
-    */
-    int temp=11;
-    temp=nfcUARTOpen();
-    temp=PN532InitAsInitiator();
-    if(temp==0)
-    {
-      HalLcdWriteString( "OK", HAL_LCD_LINE_8 );
-    }
+    
+    
   }
 
   if ( keys & HAL_KEY_RIGHT )
@@ -310,6 +327,25 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     }
     HalLcdWriteStringValue( "VALUE = ", value, 10, HAL_LCD_LINE_6 );
     */
+    /*uint8 *p1=osal_mem_alloc(SIMPLEPROFILE_CHAR_DATA1_LEN);
+    flash_Tinfo_short_read(p1,s);
+    if(i==10)
+    {
+    	s+=10;
+	flash_Tinfo_short_read(p1,s);
+        i=0;
+    }
+      #if (defined HAL_LCD) && (HAL_LCD == TRUE)
+        HalLcdWriteStringValue( "82 package:", (uint16)p1[i], 10,  HAL_LCD_LINE_3 );
+      #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+	  i++;
+    */
+    if(seq>0)
+    {
+      seq--;
+    }
+    HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
+    
   }
 }
 
@@ -332,6 +368,9 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 {
   simpleBLEPeripheral_TaskID = task_id;
 
+  //初始化权限
+      identity=0;
+  
   // Setup the GAP
   VOID GAP_SetParamValue( TGAP_CONN_PAUSE_PERIPHERAL, DEFAULT_CONN_PAUSE_PERIPHERAL );
   
@@ -405,16 +444,22 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 #if defined FEATURE_OAD
   VOID OADTarget_AddService();                    // OAD Profile
 #endif
-
+   flash_pwd_init();
+	flash_info_init();
+	
   // Setup the SimpleProfile Characteristic Values
   {
-    uint8 charValue1 = 1;
-    uint8 charValue2 = 2;
-    uint8 charValue3 = 3;
-    uint8 charValue4 = 4;
+    uint8 charValue1 = 0;
+    uint8 charValue2 = 0;
+    uint8 charValue3 = 0;
+    uint8 charValue4 = 0;
     uint8 charValue5[SIMPLEPROFILE_CHAR5_LEN] = { 1, 2, 3, 4, 5 };
-    uint8 charValue6[SIMPLEPROFILE_CHAR_PWD_SAVED_LEN] ={ 1, 2, 3, 4, 5, 6, 7, 7 };
-    uint8 PwdInDevice[SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN] ={ 1, 2, 3, 4, 5, 6, 7 ,8};
+
+  //将flash中存入的密码保存到属性表中
+    uint8* charValue6= osal_mem_alloc(SIMPLEPROFILE_CHAR_PWD_SAVED_LEN);
+	flash_pwd_read(charValue6);
+   
+    uint8 PwdInDevice[SIMPLEPROFILE_CHAR_PWD_IN_DEVICE_LEN] ={ 1,1,1,1,1,1,1,1};
     uint8 charData1[SIMPLEPROFILE_CHAR_DATA1_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 8};
     uint8 charData2[SIMPLEPROFILE_CHAR_DATA2_LEN] = { 0, 0, 0, 0, 0, 0, 0, 0, 0, 9};
 
@@ -432,7 +477,6 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
 
      // Register for all key events - This app will handle all key events
     RegisterForKeys( simpleBLEPeripheral_TaskID );
-
 
 
 #if (defined HAL_LCD) && (HAL_LCD == TRUE)
@@ -511,9 +555,7 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
     // Start Bond Manager
     VOID GAPBondMgr_Register( &simpleBLEPeripheral_BondMgrCBs );
 
-	
-    flash_pwd_init();
-	flash_info_init();
+
     // 显示按键次数
 
     // Set timer for first periodic event
@@ -531,7 +573,7 @@ uint16 SimpleBLEPeripheral_ProcessEvent( uint8 task_id, uint16 events )
     }
 
     // Perform periodic application task
-    performPeriodicTask();
+    // performPeriodicTask();
 
     return (events ^ SBP_PERIODIC_EVT);
   }
@@ -622,6 +664,8 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
       {
         #if (defined HAL_LCD) && (HAL_LCD == TRUE)
           HalLcdWriteString( "Advertising",  HAL_LCD_LINE_3 );
+	//断开连接消除权限
+	   identity = 0;
         #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
       }
       break;
@@ -748,19 +792,42 @@ static void performPeriodicTask( void )
 static void simpleProfileChangeCB( uint8 paramID )
 {
   uint8 newValue;
-
   switch( paramID )
   {
     case SIMPLEPROFILE_CHAR1:
       SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR1, &newValue );
 
-      #if (defined HAL_LCD) && (HAL_LCD == TRUE)
+/*      #if (defined HAL_LCD) && (HAL_LCD == TRUE)
         HalLcdWriteStringValue( "Char 1:", (uint16)(newValue), 10,  HAL_LCD_LINE_3 );
-      #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+      #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)*/
 
+	if(newValue==1)
+        {
+          flash_Tinfo_Length_set(0);
+	//准备好写入
+	  #if (defined HAL_LCD) && (HAL_LCD == TRUE)
+         HalLcdWriteString( "Ready to write in...",  HAL_LCD_LINE_3 );
+        #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+
+	    notification=2;
+          SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &notification);
+        }
+	else if (newValue ==2)
+	{
+	
+	  flash_Rinfo_Length_set(0);
+	  start = 0;
+	//准备好读出
+	#if (defined HAL_LCD) && (HAL_LCD == TRUE)
+         HalLcdWriteString( "Ready to read out...",  HAL_LCD_LINE_3 );
+        #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
+
+	notification=4;
+	SimpleProfile_SetParameter( SIMPLEPROFILE_CHAR4, sizeof(uint8), &notification);
+	}
       break;
 
-    case SIMPLEPROFILE_CHAR3:
+/*    case SIMPLEPROFILE_CHAR3:
       SimpleProfile_GetParameter( SIMPLEPROFILE_CHAR3, &newValue );
 
       #if (defined HAL_LCD) && (HAL_LCD == TRUE)
@@ -768,7 +835,7 @@ static void simpleProfileChangeCB( uint8 paramID )
       #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
 
       break;
-
+*/
     default:
       // should not reach here!
       break;
