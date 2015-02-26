@@ -72,7 +72,9 @@ typedef struct{
 // L3 functions
 extern int NfcInit(void);
 extern int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
+extern int NfcRelease(void);
 extern int PN532InitAsInitiator(void);
+extern int PN532InitiatorDeinit(void);
 extern int PN532InitAsTarget(void);
 extern int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
 extern int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);

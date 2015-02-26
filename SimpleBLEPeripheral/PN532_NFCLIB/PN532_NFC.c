@@ -81,12 +81,30 @@ int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataI
 	return NFC_FAIL;
 }
 
+// NfcRelease() Status: untested
+// desc:		去初始化PN532,结束本次通信.
+// input:		void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
+int NfcRelease(void){
+	switch(NfcRole){
+	case INITIATOR:{
+		return PN532InitiatorDeinit();
+	}break;
+	case TARGET:{
+		return NFC_SUCCESS;
+	}break;
+	default:{
+		//PN532 not initialized
+	}
+	}
+	return NFC_FAIL;
+}
+
 // PN532InitAsInitiator() Status: tested
 // desc:		将PN532初始化为initiator
 // input:		void
 // output:	失败NFC_FAIL, 成功NFC_SUCCESS
 int PN532InitAsInitiator(void){
-	//TODO: test
 	nfcUARTOpen();
 	retVal* res = inJumpForDEP(0x01, 0x02, 0x00, NULL, NULL, NULL, 0);
 	if(res == (retVal*) NFC_FAIL){	//low level error
@@ -111,12 +129,39 @@ int PN532InitAsInitiator(void){
 	return NFC_SUCCESS;
 }
 
+// PN532InitiatorDeinit() Status: untested
+// desc:		将PN532从initiator状态中恢复
+// input:		void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
+int PN532InitiatorDeinit(void){
+	retVal* res = inRelease(0x00);
+	if(res == (retVal*) NFC_FAIL){	//low level error
+	#ifdef LINUX
+			printf("low level error\n");
+	#else
+			HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+	#endif
+			return NFC_FAIL;
+		}else if(res->Rcv[0] == 0x7F){	//syntax error
+	#ifdef LINUX
+			printf("syntax error\n");
+	#else
+			HalLcdWriteString( "syntax error", HAL_LCD_LINE_8 );
+	#endif
+			osal_mem_free(res);
+			return NFC_FAIL;
+		}
+
+	//deal with junks
+	osal_mem_free(res);
+	return NFC_SUCCESS;
+}
+
 // PN532InitAsTarget() Status: tested
 // desc:		将PN532初始化为target
 // input:		void
 // output:	失败NFC_FAIL, 成功NFC_SUCCESS
 int PN532InitAsTarget(void){
-	//TODO: test
 	nfcUARTOpen();
 	unsigned char MifareParams[6] = {0, 0, 0, 0, 0, 0x40};
 	unsigned char FelicaParams[18] = {0};
@@ -151,7 +196,6 @@ int PN532InitAsTarget(void){
 //					DataIn: 存放输入数据的容器, 长度应合适, 内存分配由上级函数实现.
 //	output: 	失败NFC_FAIL,成功则为DataIn的实际长度.
 int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
-	//TODO: test
 	int DataOutLenRest = DataOutLen;
 	retVal* res = NULL;
 	int DataInPos = 0;
@@ -256,7 +300,6 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 //				DataIn: 存放输入数据的容器, 长度应合适
 //	output: 失败NFC_FAIL,成功则为DataIn的实际长度.
 int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
-	//TODO: test
 	int DataOutLenRest = DataOutLen;
 	retVal* res = NULL;
 	int DataInPos = 0;
@@ -398,15 +441,14 @@ int nfcUARTOpen(){
 	Opt.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);//raw mode
 	Opt.c_oflag &= ~OPOST;
 	tcsetattr(fd, TCSANOW, &Opt);
+	return NFC_SUCCESS;
 #else
 	halUARTCfg_t halUARTCfg;
 	halUARTCfg.baudRate = HAL_UART_BR_115200;
 	halUARTCfg.flowControl = FALSE;
 	halUARTCfg.callBackFunc =  (halUARTCBack_t)UARTcallback;
 	HalUARTInit();
-	//TODO: change the UART port
-	//HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
-        int res = HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
+	int res = HalUARTOpen(HAL_UART_PORT_0, &halUARTCfg);
 	if(res == HAL_UART_SUCCESS){
 		return NFC_SUCCESS;
 	}else{
@@ -439,7 +481,6 @@ int UARTsend(unsigned char *pBuffer, int length){
 		return NFC_SUCCESS;
 	}
 #else
-	//TODO: change the UART port
 	temp = HalUARTWrite(HAL_UART_PORT_0, pBuffer, length);
 	if(temp != length){
 		HalLcdWriteString( "HalUARTWriteError", HAL_LCD_LINE_3 );
@@ -476,7 +517,6 @@ retVal* UARTreceive(int length){
 		goto err;
 	}
 #else
-	//TODO: change the UART port
 	temp = HalUARTRead(HAL_UART_PORT_0, RetVal->Rcv, length);
 	if(temp != length){	//error handling
 		HalLcdWriteString( "HalUARTReadError", HAL_LCD_LINE_3 );
@@ -1025,7 +1065,6 @@ retVal* PN532transceive(unsigned char* Input, int InputLen){
 //					InParam: the input parameter of NumTst;
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* PN532diagnose(unsigned char NumTst, unsigned char* InParam,unsigned int InParamLen){
-	//TODO: test
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 3 + InParamLen;
@@ -1116,7 +1155,6 @@ err:
 //											   [Tg2] [BrRx2] [BrTx2] [Type2]
 //											   [SAM status]}.
 retVal* PN532getGeneralStatus(void){
-	//TODO: test
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 2;
@@ -1199,7 +1237,6 @@ int PN532setSerialBaudRate(unsigned char BR){
 //	input:		Flags:the parameters to be set.
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* PN532setParameters(unsigned char Flags){
-	//TODO: test
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 3;
@@ -1253,7 +1290,6 @@ int PN532SAMconfiguration(unsigned char Mode, unsigned char Timeout, unsigned ch
 //					GenarateIRQ:please refer to the User Manual.
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* PN532powerDown(unsigned char WakeUpEnable, unsigned char* GenarateIRQ){
-	//TODO: test
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 3;
@@ -1304,7 +1340,6 @@ err:
 //					CfgDataLen:the length of ConfigurationData.
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* PN532RFConfiguration(unsigned char CfgItem, unsigned char* ConfigurationData, int CfgDataLen){
-	//TODO: test
 	//build TFI + PData
 	unsigned char *PData = NULL;
 	int PDataLen = 3 + CfgDataLen;
