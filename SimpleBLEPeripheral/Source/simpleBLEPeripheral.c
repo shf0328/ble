@@ -122,7 +122,8 @@ static uint8 i =0;
 //用于测试的一个结构体
 uint8 seq=0;
 uint8 value=0;
-
+//uint8 send[50]={0};
+//uint8 receive[50]={0};
 /*********************************************************************
 特征值                 UUID    初始权限	         验证后权限	
 主机命令位	FFF1	                NONE	              	Read&Write	
@@ -277,7 +278,9 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   VOID shift;  // Intentionally unreferenced parameter
 
   //HalLcdWriteStringValue( "key = 0x", keys, 16, HAL_LCD_LINE_3 );
-
+  
+  
+  
   
   if ( keys & HAL_KEY_UP )
   {  
@@ -296,8 +299,8 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     HalLcdWriteString( "HAL_KEY_LEFT", HAL_LCD_LINE_5 );
     uint8 temp=0;
     temp=flash_Tinfo_single_read(seq);
-    HalLcdWriteStringValue( "read VALUE = ", temp, 10, HAL_LCD_LINE_6 );
-    
+    //HalLcdWriteStringValue( "send VALUE = ", send[seq], 10, HAL_LCD_LINE_6 );
+    HalLcdWriteStringValue( "T VALUE = ", temp, 10, HAL_LCD_LINE_7 );
     
   }
 
@@ -308,6 +311,11 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     flash_Rinfo_short_read(temp, 8);
     HalLcdWriteStringValue( "SAVE VALUE = ", temp[3], 10, HAL_LCD_LINE_6 );
     */
+    HalLcdWriteString( "HAL_KEY_RIGHT", HAL_LCD_LINE_5 );
+    uint8 temp=0;
+    temp=flash_Rinfo_single_read(seq);
+    //HalLcdWriteStringValue( "rcv VALUE = ", receive[seq], 10, HAL_LCD_LINE_6 );
+    HalLcdWriteStringValue( "R VALUE = ", temp, 10, HAL_LCD_LINE_7 );
   }
   
   if ( keys & HAL_KEY_CENTER )
@@ -315,7 +323,82 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
     /*HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
     uint8 temp[4]={12,13,11,10};
     flash_Rinfo_short_write(temp, 4);
+    
+    int temp=1;
+    uint8 transfer[50]={0};
+    uint8 receive[50]={0};
+    
+    for(int i=0; i<6;i++)
+    {
+      temp=NfcInit();
+      if(temp==NFC_SUCCESS)
+      {
+        break;
+      }
+    }
+    
+      
+    if(temp==NFC_FAIL)
+    {
+      goto err_process;
+    }
+    
+
+    temp=flash_Tinfo_all_read(transfer);
+    if(temp==NV_OPER_FAILED)
+    {
+      goto err_process;
+    }
+      
+    temp=NfcDataExchange(transfer,50,receive);
+    if(temp==NFC_FAIL)
+    {
+      goto err_process;
+    }
+      
+    temp=flash_Rinfo_all_write(receive);
+    if(temp==NV_OPER_FAILED)
+    {
+      goto err_process;
+    }
+      
+    temp=NfcRelease();
+    if(temp==NFC_FAIL)
+    {
+      goto err_process;
+    }
+    
+    HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
+  
+  
+  err_process:
     */
+        int res = NFC_FAIL;
+	int initCnt = 0;
+        //int temp=0;
+	do{
+		res = NfcInit();
+		initCnt++;
+	}while(res == NFC_FAIL);
+	
+	HalLcdWriteStringValue( "initCnt =", initCnt, 10, HAL_LCD_LINE_6 );
+	
+        uint8 send[50]={0};
+        uint8 rec[50]={0};
+        flash_Tinfo_all_read(send);
+        
+	res = NfcDataExchange(send, 50, rec);
+        
+        
+        
+	if(res==NFC_FAIL){
+		HalLcdWriteString( "FAIL", HAL_LCD_LINE_5 );
+	}else{
+                flash_Rinfo_all_write(rec);
+		HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
+	}
+
+	NfcRelease();
   }
   
   if ( keys & HAL_KEY_DOWN )
@@ -326,8 +409,7 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
       value++;
     }
     HalLcdWriteStringValue( "VALUE = ", value, 10, HAL_LCD_LINE_6 );
-    */
-    /*uint8 *p1=osal_mem_alloc(SIMPLEPROFILE_CHAR_DATA1_LEN);
+    uint8 *p1=osal_mem_alloc(SIMPLEPROFILE_CHAR_DATA1_LEN);
     flash_Tinfo_short_read(p1,s);
     if(i==10)
     {
@@ -447,6 +529,7 @@ void SimpleBLEPeripheral_Init( uint8 task_id )
    flash_pwd_init();
 	flash_info_init();
 	
+   
   // Setup the SimpleProfile Characteristic Values
   {
     uint8 charValue1 = 0;

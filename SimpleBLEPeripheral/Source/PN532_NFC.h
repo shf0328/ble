@@ -7,7 +7,7 @@
 	#include "hal_uart.h"
 	#include "OSAL_Memory.h"
 	#include "OSAL.h"
-        #include "hal_lcd.h"
+	#include "hal_lcd.h"
 #endif
 //---------------------------------------------------------------------------
 // Global Variables Declarations
@@ -72,7 +72,9 @@ typedef struct{
 // L3 functions
 extern int NfcInit(void);
 extern int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
+extern void NfcRelease(void);
 extern int PN532InitAsInitiator(void);
+extern int PN532InitiatorDeinit(void);
 extern int PN532InitAsTarget(void);
 extern int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
 extern int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
@@ -93,7 +95,7 @@ extern int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN);
 extern int PN532sendNACKFrame(void);
 extern int PN532sendACKFrame(void);
 extern retVal* PN532receiveFrame(void);
-extern retVal* PN532transceive(unsigned char* Input, int InputLen);
+extern retVal* PN532transceive(unsigned char* Input, int InputLen, unsigned int timeout);
 
 //---------------------------------------------------------------------------
 // L2 functions
