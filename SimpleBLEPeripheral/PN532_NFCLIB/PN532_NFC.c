@@ -37,7 +37,11 @@ int NfcRole = -1;
 //	闅忔満鏈哄埗
 
 // NfcInit() Status: tested
+<<<<<<< HEAD
 // desc:		鍒濆鍖朠N532,闅忔満鍒濆鍖栦负initiator鎴栬�卼arget
+=======
+// desc:		初始化PN532,随机初始化为initiator或者target
+>>>>>>> origin/master
 // input:		void
 // output:	澶辫触NFC_FAIL, 鎴愬姛NFC_SUCCESS
 int NfcInit(void){
@@ -73,7 +77,11 @@ int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataI
 }
 
 // NfcRelease() Status: tested
+<<<<<<< HEAD
 // desc:		鍘诲垵濮嬪寲PN532,缁撴潫鏈閫氫俊.
+=======
+// desc:		去初始化PN532,结束本次通信.
+>>>>>>> origin/master
 // input:		void
 // output:	void
 void NfcRelease(void){
