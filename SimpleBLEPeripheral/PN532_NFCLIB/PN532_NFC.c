@@ -26,6 +26,7 @@
 	}
 #endif
 
+void DelayMs(unsigned int delay);
 //---------------------------------------------------------------------------
 // Global Variables Definiions
 //
@@ -35,29 +36,19 @@ int NfcRole = -1;
 // level-3 functions
 //	随机机制
 
-// NfcInit() Status: untested
+// NfcInit() Status: tested
 // desc:		初始化PN532,随机初始化为initiator或者target
 // input:		void
 // output:	失败NFC_FAIL, 成功NFC_SUCCESS
 int NfcInit(void){
 	unsigned int rNumber = osal_rand();
-	int res = 0;
 	if(rNumber%2 == 0){
-		res = PN532InitAsInitiator();
-		if(res == 0){
-			//error handling
-			return NFC_FAIL;
-		}
 		NfcRole = INITIATOR;
+		return PN532InitAsInitiator();
 	}else{
-		res = PN532InitAsTarget();
-		if(res == 0){
-			//error handling
-			return NFC_FAIL;
-		}
 		NfcRole = TARGET;
+		return PN532InitAsTarget();
 	}
-	return NFC_SUCCESS;
 }
 
 // NfcDataExchange() Status: untested
@@ -81,23 +72,12 @@ int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataI
 	return NFC_FAIL;
 }
 
-// NfcRelease() Status: untested
+// NfcRelease() Status: tested
 // desc:		去初始化PN532,结束本次通信.
 // input:		void
-// output:	失败NFC_FAIL, 成功NFC_SUCCESS
-int NfcRelease(void){
-	switch(NfcRole){
-	case INITIATOR:{
-		return PN532InitiatorDeinit();
-	}break;
-	case TARGET:{
-		return NFC_SUCCESS;
-	}break;
-	default:{
-		//PN532 not initialized
-	}
-	}
-	return NFC_FAIL;
+// output:	void
+void NfcRelease(void){
+	Pn532PowerMode = LOWVBAT;
 }
 
 // PN532InitAsInitiator() Status: tested
@@ -111,46 +91,18 @@ int PN532InitAsInitiator(void){
 #ifdef LINUX
 		printf("low level error\n");
 #else
-		HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "in init low level error", HAL_LCD_LINE_8 );
 #endif
 		return NFC_FAIL;
 	}else if(res->Rcv[0] != 0){	//app level error
 #ifdef LINUX
 		printf("app level error\n");
 #else
-		HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "in init app level error", HAL_LCD_LINE_8 );
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
 	}
-
-	//deal with junks
-	osal_mem_free(res);
-	return NFC_SUCCESS;
-}
-
-// PN532InitiatorDeinit() Status: untested
-// desc:		将PN532从initiator状态中恢复
-// input:		void
-// output:	失败NFC_FAIL, 成功NFC_SUCCESS
-int PN532InitiatorDeinit(void){
-	retVal* res = inRelease(0x00);
-	if(res == (retVal*) NFC_FAIL){	//low level error
-	#ifdef LINUX
-			printf("low level error\n");
-	#else
-			HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
-	#endif
-			return NFC_FAIL;
-		}else if(res->Rcv[0] == 0x7F){	//syntax error
-	#ifdef LINUX
-			printf("syntax error\n");
-	#else
-			HalLcdWriteString( "syntax error", HAL_LCD_LINE_8 );
-	#endif
-			osal_mem_free(res);
-			return NFC_FAIL;
-		}
 
 	//deal with junks
 	osal_mem_free(res);
@@ -171,14 +123,14 @@ int PN532InitAsTarget(void){
 #ifdef LINUX
 		printf("low level error\n");
 #else
-		HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "tg init low level error", HAL_LCD_LINE_8 );
 #endif
 		return NFC_FAIL;
 	}else if(res->Rcv[0] == 0x7F){	//syntax error
 #ifdef LINUX
 		printf("syntax error\n");
 #else
-		HalLcdWriteString( "syntax error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "tg init syntax error", HAL_LCD_LINE_8 );
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
@@ -207,7 +159,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 		printf("low level error\n");
 #else
-		HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "tg DE low level error", HAL_LCD_LINE_8 );
 #endif
 		return NFC_FAIL;
 	}else if( (res->Rcv[0]&0x3F) != 0){
@@ -215,7 +167,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 		printf("app level error\n");
 #else
-		HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "tg DE app level error", HAL_LCD_LINE_8 );
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
@@ -228,7 +180,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 			printf("low level error\n");
 #else
-			HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "tg DE low level error", HAL_LCD_LINE_8 );
 #endif
 			return NFC_FAIL;
 		}else if( (res->Rcv[0]&0x3F) != 0){
@@ -236,7 +188,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 			printf("app level error\n");
 #else
-			HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "tg DE app level error", HAL_LCD_LINE_8 );
 #endif
 			osal_mem_free(res);
 			return NFC_FAIL;
@@ -253,7 +205,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 			printf("low level error\n");
 #else
-			HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "tg DE low level error", HAL_LCD_LINE_8 );
 #endif
 			return NFC_FAIL;
 		}else if( (res->Rcv[0]&0x3F) != 0){
@@ -261,7 +213,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 			printf("app level error\n");
 #else
-			HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "tg DE app level error", HAL_LCD_LINE_8 );
 #endif
 			osal_mem_free(res);
 			return NFC_FAIL;
@@ -274,7 +226,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 		printf("low level error\n");
 #else
-		HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "tg DE low level error", HAL_LCD_LINE_8 );
 #endif
 		return NFC_FAIL;
 	}else if( (res->Rcv[0]&0x3F) != 0){
@@ -282,7 +234,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 #ifdef LINUX
 		printf("app level error\n");
 #else
-		HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "tg DE app level error", HAL_LCD_LINE_8 );
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
@@ -312,7 +264,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 #ifdef LINUX
 			printf("low level error\n");
 #else
-			HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "in DE low level error", HAL_LCD_LINE_8 );
 #endif
 			return NFC_FAIL;
 		}else if( (res->Rcv[0]&0x3F) != 0){
@@ -320,7 +272,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 #ifdef LINUX
 			printf("app level error\n");
 #else
-			HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "in DE app level error", HAL_LCD_LINE_8 );
 #endif
 			osal_mem_free(res);
 			return NFC_FAIL;
@@ -333,7 +285,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 #ifdef LINUX
 		printf("low level error\n");
 #else
-		HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "in DE low level error", HAL_LCD_LINE_8 );
 #endif
 		return NFC_FAIL;
 	}else if( (res->Rcv[0]&0x3F) != 0){
@@ -341,7 +293,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 #ifdef LINUX
 		printf("app level error\n");
 #else
-		HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+		HalLcdWriteString( "in DE app level error", HAL_LCD_LINE_8 );
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
@@ -357,7 +309,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 #ifdef LINUX
 			printf("low level error\n");
 #else
-			HalLcdWriteString( "low level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "in DE low level error", HAL_LCD_LINE_8 );
 #endif
 			return NFC_FAIL;
 		}else if( (res->Rcv[0]&0x3F) != 0){
@@ -365,7 +317,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 #ifdef LINUX
 			printf("app level error\n");
 #else
-			HalLcdWriteString( "app level error", HAL_LCD_LINE_8 );
+			HalLcdWriteString( "in DE app level error", HAL_LCD_LINE_8 );
 #endif
 			osal_mem_free(res);
 			return NFC_FAIL;
@@ -568,7 +520,7 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 			// PN532 wakeup.
 			// According to PN532 application note, C106 appendix: to go out Low Vbat mode and enter in normal mode we need to send a SAMConfiguration command
 			
-                        unsigned char pn532_wakeup_outLVbat_preamble[40] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
+            unsigned char pn532_wakeup_outLVbat_preamble[40] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
 			res = UARTsend(pn532_wakeup_outLVbat_preamble, 40);
 			if(res == NFC_FAIL){
 #ifdef LINUX
@@ -581,7 +533,7 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 			//receiving ACK and SAM info frame
 			//short delay
 #ifdef LINUX
-			usleep(5000);
+			usleep(10000);
 #else
 			DelayMs(300);
 #endif
