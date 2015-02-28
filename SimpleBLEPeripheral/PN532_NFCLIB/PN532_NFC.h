@@ -7,7 +7,7 @@
 	#include "hal_uart.h"
 	#include "OSAL_Memory.h"
 	#include "OSAL.h"
-        #include "hal_lcd.h"
+	#include "hal_lcd.h"
 #endif
 //---------------------------------------------------------------------------
 // Global Variables Declarations
@@ -95,7 +95,7 @@ extern int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN);
 extern int PN532sendNACKFrame(void);
 extern int PN532sendACKFrame(void);
 extern retVal* PN532receiveFrame(void);
-extern retVal* PN532transceive(unsigned char* Input, int InputLen);
+extern retVal* PN532transceive(unsigned char* Input, int InputLen, unsigned int timeout);
 
 //---------------------------------------------------------------------------
 // L2 functions
