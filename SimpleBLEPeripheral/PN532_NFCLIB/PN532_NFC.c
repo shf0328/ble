@@ -8,8 +8,11 @@
 	#include <unistd.h>
 	#include <sys/types.h>
 	#include <sys/stat.h>
+	#include <sys/select.h>
+	#include <sys/ioctl.h>
 	#include <fcntl.h>
-//	#include <termios.h>
+	#include </usr/include/asm-generic/ioctls.h>
+	#include <termios.h>
 	#include <errno.h>
 
 	void *osal_mem_alloc(unsigned int size){
@@ -34,12 +37,12 @@ unsigned char Pn532PowerMode = LOWVBAT;
 int NfcRole = -1;
 //---------------------------------------------------------------------------
 // level-3 functions
-//	闅忔満鏈哄埗
+//	随机机制
 
 // NfcInit() Status: tested
-// desc:		鍒濆鍖朠N532,闅忔満鍒濆鍖栦负initiator鎴栬�卼arget
-// input:		void
-// output:	澶辫触NFC_FAIL, 鎴愬姛NFC_SUCCESS
+// desc:	初始化PN532,随机初始化为initiator或者target
+// input:	void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
 int NfcInit(void){
 	unsigned int rNumber = osal_rand();
 	if(rNumber%2 == 0){
@@ -52,11 +55,11 @@ int NfcInit(void){
 }
 
 // NfcDataExchange() Status: untested
-// desc:	浣跨敤PN532杩涜鏁版嵁浜ゆ崲, 渚濋潬NfcInit鍒濆鍖栨垚鐨勮鑹插垎鍒繘琛屼笉鍚岀殑鏁版嵁浜ゆ崲
-//	input:	DataOut: 杈撳嚭鏁版嵁
-//				DataOutLen: Input鐨勯暱搴�
-//				DataIn: 瀛樻斁杈撳叆鏁版嵁鐨勫鍣�, 闀垮害搴斿悎閫�, 鍐呭瓨鍒嗛厤鐢变笂绾у嚱鏁板疄鐜�.
-//	output: 澶辫触NFC_FAIL,鎴愬姛鍒欎负DataIn鐨勫疄闄呴暱搴�.
+// desc:	使用PN532进行数据交换, 依靠NfcInit初始化成的角色分别进行不同的数据交换
+// input:	DataOut: 输出数据
+//			DataOutLen: Input的长度
+//			DataIn: 存放输入数据的容器, 长度应合适, 内存分配由上级函数实现.
+// output: 失败NFC_FAIL,成功则为DataIn的实际长度.
 int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	switch(NfcRole){
 	case INITIATOR:{
@@ -73,17 +76,17 @@ int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataI
 }
 
 // NfcRelease() Status: tested
-// desc:		鍘诲垵濮嬪寲PN532,缁撴潫鏈閫氫俊.
-// input:		void
+// desc:	去初始化PN532,结束本次通信.
+// input:	void
 // output:	void
 void NfcRelease(void){
 	Pn532PowerMode = LOWVBAT;
 }
 
 // PN532InitAsInitiator() Status: tested
-// desc:		灏哖N532鍒濆鍖栦负initiator
-// input:		void
-// output:	澶辫触NFC_FAIL, 鎴愬姛NFC_SUCCESS
+// desc:	将PN532初始化为initiator
+// input:	void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
 int PN532InitAsInitiator(void){
 	nfcUARTOpen();
 	retVal* res = inJumpForDEP(0x01, 0x02, 0x00, NULL, NULL, NULL, 0);
@@ -110,9 +113,9 @@ int PN532InitAsInitiator(void){
 }
 
 // PN532InitAsTarget() Status: tested
-// desc:		灏哖N532鍒濆鍖栦负target
-// input:		void
-// output:	澶辫触NFC_FAIL, 鎴愬姛NFC_SUCCESS
+// desc:	将PN532初始化为target
+// input:	void
+// output:	失败NFC_FAIL, 成功NFC_SUCCESS
 int PN532InitAsTarget(void){
 	nfcUARTOpen();
 	unsigned char MifareParams[6] = {0, 0, 0, 0, 0, 0x40};
@@ -142,17 +145,17 @@ int PN532InitAsTarget(void){
 }
 
 // PN532TargetDataExchange() Status: tested
-// desc:		浣跨敤PN532浣滀负target杩涜鏁版嵁浜ゆ崲
-//	input:		DataOut: 杈撳嚭鏁版嵁
-//					DataOutLen: Input鐨勯暱搴�
-//					DataIn: 瀛樻斁杈撳叆鏁版嵁鐨勫鍣�, 闀垮害搴斿悎閫�, 鍐呭瓨鍒嗛厤鐢变笂绾у嚱鏁板疄鐜�.
-//	output: 	澶辫触NFC_FAIL,鎴愬姛鍒欎负DataIn鐨勫疄闄呴暱搴�.
+// desc:	使用PN532作为target进行数据交换
+// input:	DataOut: 输出数据
+//			DataOutLen: Input的长度
+//			DataIn: 存放输入数据的容器, 长度应合适, 内存分配由上级函数实现.
+// output: 	失败NFC_FAIL,成功则为DataIn的实际长度.
 int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	int DataOutLenRest = DataOutLen;
 	retVal* res = NULL;
 	int DataInPos = 0;
 
-	//浣跨敤chaining mechanism鎺ユ敹鏁版嵁
+	//使用chaining mechanism接收数据
 	res = tgGetData();
 	if(res == (retVal*) NFC_FAIL){//error handling
 		//low level error
@@ -197,7 +200,7 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 	memcpy(&DataIn[DataInPos], &res->Rcv[1], res->length-1);
 	DataInPos = DataInPos + res->length-1;
 
-	//浣跨敤chaining mechanism鍙戦�佹暟鎹�
+	//使用chaining mechanism发送数据
 	while(DataOutLenRest > 262){
 		res = tgSetMetaData(&DataOut[DataOutLen - DataOutLenRest], 262);
 		if(res == (retVal*) NFC_FAIL){//error handling
@@ -246,17 +249,17 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 }
 
 // PN532InitiatorDataExchange() Status: tested
-// desc:	浣跨敤PN532浣滀负target杩涜鏁版嵁浜ゆ崲
-//	input:	DataOut: 杈撳嚭鏁版嵁
-//				DataOutLen: Input鐨勯暱搴�
-//				DataIn: 瀛樻斁杈撳叆鏁版嵁鐨勫鍣�, 闀垮害搴斿悎閫�
-//	output: 澶辫触NFC_FAIL,鎴愬姛鍒欎负DataIn鐨勫疄闄呴暱搴�.
+// desc:	使用PN532作为target进行数据交换
+// input:	DataOut: 输出数据
+//			DataOutLen: Input的长度
+//			DataIn: 存放输入数据的容器, 长度应合适
+// output: 	失败NFC_FAIL,成功则为DataIn的实际长度.
 int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	int DataOutLenRest = DataOutLen;
 	retVal* res = NULL;
 	int DataInPos = 0;
 
-	//浣跨敤chaining mechanism鍙戦�佹暟鎹�
+	//使用chaining mechanism发送数据
 	while(DataOutLenRest > 262){
 		res = inDataExchange(0x01 | MI, &DataOut[DataOutLen - DataOutLenRest], 262);
 		if(res == (retVal*) NFC_FAIL){//error handling
@@ -299,7 +302,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 		return NFC_FAIL;
 	}
 
-	//浣跨敤chaining mechanism鎺ユ敹鏁版嵁
+	//使用chaining mechanism接收数据
 	while( (res->Rcv[0]&MI) != 0){
 		memcpy(&DataIn[DataInPos], &res->Rcv[1], 262);
 		DataInPos = DataInPos + 262;
@@ -332,14 +335,27 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 }
 
 // DelayMs() Status: untested
-// desc:		杩涜寤舵椂,浠呯敤浜嶤C254x骞冲彴.
-//	input:		delay: 寤舵椂鍊�,骞朵笉鏄痬s鏁�
-//	output: 	void.
-void DelayMs(unsigned int delay){
+// desc:	进行延时,仅用于CC254x平台.
+// input:	delay: 延时值,并不是ms数
+// output: 	void.
+void DelayMs(unsigned int ms){
+#ifdef LINUX
+	fd_set fds;
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+	int maxfdp= fd + 1; //描述符最大值加1
+	struct timeval delay;
+	delay.tv_sec = 0;
+	delay.tv_usec = ms * 1000;
+	select(maxfdp, &fds, NULL, NULL, &delay);
+#else
 	unsigned int i,j,k;
-	for(k=0; k<1000; k++)
-		for(i=0; i<delay; i++)
+	for(k=0; k<1000; k++){
+		if(0 < UARTRxBufLen())	return;
+		for(i=0; i<ms; i++)
 			for(j=0; j<535; j++);
+	}
+#endif
 }
 
 void UARTcallback(unsigned char task_id, unsigned int events){
@@ -349,7 +365,7 @@ void UARTcallback(unsigned char task_id, unsigned int events){
 //---------------------------------------------------------------------------
 // level0 functions
 // hardware-oriented functions
-// replace registers with HAL functions
+//
 
 // nfcUARTOpen() Status: tested
 // desc:	init and open UART.
@@ -378,7 +394,7 @@ int nfcUARTOpen(){
 	EA = 1;				//Enable global interrupt
 	U0CSR |= 0x40;		//receive enable*/
 #ifdef LINUX
-	/*fd = open("/dev/ttyUSB0",O_RDWR | O_NOCTTY | O_NDELAY);
+	fd = open("/dev/ttyUSB0",O_RDWR | O_NOCTTY | O_NDELAY);
 	if(fd == -1){
 		perror("unable to open ttyUSB0");
 	}
@@ -393,7 +409,7 @@ int nfcUARTOpen(){
 	Opt.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);//raw mode
 	Opt.c_oflag &= ~OPOST;
 	tcsetattr(fd, TCSANOW, &Opt);
-	return NFC_SUCCESS;*/
+	return NFC_SUCCESS;
 #else
 	halUARTCfg_t halUARTCfg;
 	halUARTCfg.baudRate = HAL_UART_BR_115200;
@@ -483,6 +499,25 @@ err:
 	//deal with junks
 	osal_mem_free(RetVal);
 	return (retVal*) NFC_FAIL;
+}
+
+// UARTRxBufLen() Status: untested
+// desc:	read the rx buffer data size
+// input:	void
+// output:	the number of bytes in rx buffer when successed and NFC_FAIL when failed
+int UARTRxBufLen(void){
+#ifdef LINUX
+	int bytes = 0;
+	int res = ioctl(fd, FIONREAD, &bytes);
+	if(res == -1){
+		return NFC_FAIL;
+	}else{
+		return bytes;
+	}
+#else
+	int bytes = Hal_UART_RxBufLen(HAL_UART_PORT_0);
+	return bytes;
+#endif
 }
 
 // UARTflushRxBuf() Status: untested
@@ -1478,7 +1513,7 @@ retVal* inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int Da
 
 	//transmit data
 	retVal* OutParam = NULL;
-	OutParam = PN532transceive(PData, PDataLen, 600);
+	OutParam = PN532transceive(PData, PDataLen, 1000);
 	if(OutParam == (retVal*) NFC_FAIL){	//transcevie error
 #ifdef LINUX
 		printf("TransceiveError\n");

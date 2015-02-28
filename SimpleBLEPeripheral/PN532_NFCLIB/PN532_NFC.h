@@ -87,7 +87,7 @@ extern int nfcUARTOpen();
 extern int UARTsend(unsigned char *pBuffer, int length);
 extern retVal* UARTreceive(int length);
 extern int UARTflushRxBuf(void);
-
+extern int UARTRxBufLen(void);
 //---------------------------------------------------------------------------
 // L1 functions
 //
