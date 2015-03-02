@@ -773,13 +773,13 @@ static void peripheralStateNotificationCB( gaprole_States_t newState )
       }
       break;
 
-    case GAPROLE_CONNECTED_ADV:
+    /*case GAPROLE_CONNECTED_ADV:
       {
         #if (defined HAL_LCD) && (HAL_LCD == TRUE)
           HalLcdWriteString( "Connected Advertising",  HAL_LCD_LINE_3 );
         #endif // (defined HAL_LCD) && (HAL_LCD == TRUE)
       }
-      break;      
+      break;      */
     case GAPROLE_WAITING:
       {
         #if (defined HAL_LCD) && (HAL_LCD == TRUE)
