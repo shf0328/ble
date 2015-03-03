@@ -29,7 +29,7 @@ extern "C"
 #define NFC_SOCIAL_MODE_DE_EVT		0x0008
 #define NFC_READER_MODE_INIT_EVT	0x0010
 #define NFC_READER_MODE_DE_EVT		0x0020
-#define NFC_PERIODIC_EVT			0x0040
+#define NFC_PERIODIC_EVT			0x0080
 
 /*********************************************************************
  * MACROS

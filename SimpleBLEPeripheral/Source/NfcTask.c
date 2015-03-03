@@ -69,6 +69,9 @@ static uint8 NfcTask_TaskID;   // Task ID for internal task/event processing
 uint8 next = CARD_MODE;
 uint8 now = CARD_MODE;
 uint16 SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
+
+//card info
+
 /*********************************************************************
  * EXTERNAL VARIABLES
  */
@@ -188,65 +191,103 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 	
 	//process card mode initialization event
 	if(events & NFC_CARD_MODE_INIT_EVT){
-		NfcRelease();
 		nfcUARTOpen();
+		//init as mifare card
+		//TODO: card info
 		unsigned char MifareParams[6] = {0, 0, 0, 0, 0, 0x40};
 		unsigned char FelicaParams[18] = {0};
 		unsigned char NFCID3t[10] = {0};
 		retVal* res = tgInitAsTarget(0, MifareParams, FelicaParams, NFCID3t, 0, NULL, 0, NULL);
 		if(res == (retVal*) NFC_FAIL){	//low level error
-#ifdef LINUX
-			printf("low level error\n");
-#else
-			HalLcdWriteString( "tg init low level error", HAL_LCD_LINE_8 );
+#ifdef DEBUG
+			HalLcdWriteString( "card init low level error", HAL_LCD_LINE_8 );
 #endif
-			goto fail;
+			NfcRelease();
+			goto card_init_fail;
 		}else if(res->Rcv[0] == 0x7F){	//syntax error
-#ifdef LINUX
-			printf("syntax error\n");
-#else
-			HalLcdWriteString( "tg init syntax error", HAL_LCD_LINE_8 );
+#ifdef DEBUG
+			HalLcdWriteString( "card init syntax error", HAL_LCD_LINE_8 );
 #endif
 			osal_mem_free(res);
-			goto fail;
+			NfcRelease();
+			goto card_init_fail;
 		}
-success:
+		
 		//deal with junks
 		osal_mem_free(res);
 		osal_set_event(NfcTask_TaskID, NFC_CARD_MODE_DE_EVT);
-		return (events ^ NFC_CARD_MODE_INIT_EVT);
 		
-fail:
+card_init_fail:
 		return (events ^ NFC_CARD_MODE_INIT_EVT);
 	}
 	
 	//process card mode data exchange event
 	if(events & NFC_CARD_MODE_DE_EVT){
-	
+		//TODO: mifare card data exchange
+		//using tgGetInitiatorData and tg ResponseToInitiator
 		return (events ^ NFC_CARD_MODE_DE_EVT);
 	}
 	
 	//process social mode initialization event
 	if(events & NFC_SOCIAL_MODE_INIT_EVT){
-	
+		nfcUARTOpen();
+		int res = NfcInit();
+		if(res == NFC_FAIL){
+			NfcRelease();
+			goto social_init_fail;
+		}
+		osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_DE_EVT);
+social_init_fail:
 		return (events ^ NFC_SOCIAL_MODE_INIT_EVT);
 	}
 	
 	//process social mode data exchange event
 	if(events & NFC_SOCIAL_MODE_DE_EVT){
-	
+		//TODO: social mode data exchange
+		int res = NfcDataExchange(NULL, 0, NULL);
 		return (events ^ NFC_SOCIAL_MODE_DE_EVT);
 	}
 	
 	//process reader mode initialization event
 	if(events & NFC_READER_MODE_INIT_EVT){
-	
+		nfcUARTOpen();
+		retVal* res = inListPassiveTarget(1, 0, NULL, 0);
+		if(res == (retVal*) NFC_FAIL){	//low level error
+#ifdef DEBUG
+			HalLcdWriteString( "reader init low level error", HAL_LCD_LINE_8 );
+#endif
+			goto reader_init_fail;
+		}else if(res->Rcv[0] == 0x7F){	//syntax error
+#ifdef DEBUG
+			HalLcdWriteString( "reader init low level error", HAL_LCD_LINE_8 );
+#endif
+			osal_mem_free(res);
+			NfcRelease();
+			goto reader_init_fail;
+		}
+		
+		if(res->Rcv[0] == 0){
+#ifdef DEBUG
+			HalLcdWriteString( "no card present", HAL_LCD_LINE_8 );
+#endif
+			osal_mem_free(res);
+			NfcRelease();
+			goto reader_init_fail;
+		}
+		
+		//TODO: deal with card info
+		
+		//deal with junks
+		osal_mem_free(res);
+		osal_set_event(NfcTask_TaskID, NFC_READER_MODE_DE_EVT);
+reader_init_fail:
 		return (events ^ NFC_READER_MODE_INIT_EVT);
 	}
 	
 	//process reader mode data exchange event
 	if(events & NFC_READER_MODE_DE_EVT){
-	
+		//TODO: reader mode data exchange
+		//using inDataExchange
 		return (events ^ NFC_READER_MODE_DE_EVT);
 	}
 	
