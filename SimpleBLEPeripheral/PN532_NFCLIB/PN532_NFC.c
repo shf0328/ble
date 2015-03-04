@@ -57,9 +57,9 @@ int NfcInit(void){
 // NfcDataExchange() Status: untested
 // desc:	使用PN532进行数据交换, 依靠NfcInit初始化成的角色分别进行不同的数据交换
 // input:	DataOut: 输出数据
-//			DataOutLen: Input的长度
-//			DataIn: 存放输入数据的容器, 长度应合适, 内存分配由上级函数实现.
-// output: 失败NFC_FAIL,成功则为DataIn的实际长度.
+//			DataOutLen: Input的长�?
+//			DataIn: 存放输入数据的容�? 长度应合�? 内存分配由上级函数实�?
+// output: 失败NFC_FAIL,成功则为DataIn的实际长�?
 int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	switch(NfcRole){
 	case INITIATOR:{
@@ -80,7 +80,11 @@ int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataI
 // input:	void
 // output:	void
 void NfcRelease(void){
-	Pn532PowerMode = LOWVBAT;
+	//switch to STANDBY mode
+	unsigned char pn532_wakeup_outLVbat_preamble[40] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
+	UARTsend(pn532_wakeup_outLVbat_preamble, 40);
+	//flush rx buf
+	UARTflushRxBuf();
 }
 
 // PN532InitAsInitiator() Status: tested
@@ -147,9 +151,8 @@ int PN532InitAsTarget(void){
 // PN532TargetDataExchange() Status: tested
 // desc:	使用PN532作为target进行数据交换
 // input:	DataOut: 输出数据
-//			DataOutLen: Input的长度
-//			DataIn: 存放输入数据的容器, 长度应合适, 内存分配由上级函数实现.
-// output: 	失败NFC_FAIL,成功则为DataIn的实际长度.
+//			DataOutLen: Input的长�?//			DataIn: 存放输入数据的容�? 长度应合�? 内存分配由上级函数实�?
+// output: 	失败NFC_FAIL,成功则为DataIn的实际长�?
 int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	int DataOutLenRest = DataOutLen;
 	retVal* res = NULL;
@@ -200,8 +203,8 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 	memcpy(&DataIn[DataInPos], &res->Rcv[1], res->length-1);
 	DataInPos = DataInPos + res->length-1;
 
-	//使用chaining mechanism发送数据
-	while(DataOutLenRest > 262){
+	//使用chaining mechanism发送数�?	
+        while(DataOutLenRest > 262){
 		res = tgSetMetaData(&DataOut[DataOutLen - DataOutLenRest], 262);
 		if(res == (retVal*) NFC_FAIL){//error handling
 			//low level error
@@ -251,16 +254,14 @@ int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned cha
 // PN532InitiatorDataExchange() Status: tested
 // desc:	使用PN532作为target进行数据交换
 // input:	DataOut: 输出数据
-//			DataOutLen: Input的长度
-//			DataIn: 存放输入数据的容器, 长度应合适
-// output: 	失败NFC_FAIL,成功则为DataIn的实际长度.
+//			DataOutLen: Input的长�?//			DataIn: 存放输入数据的容�? 长度应合�?// output: 	失败NFC_FAIL,成功则为DataIn的实际长�?
 int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn){
 	int DataOutLenRest = DataOutLen;
 	retVal* res = NULL;
 	int DataInPos = 0;
 
-	//使用chaining mechanism发送数据
-	while(DataOutLenRest > 262){
+	//使用chaining mechanism发送数�?	
+        while(DataOutLenRest > 262){
 		res = inDataExchange(0x01 | MI, &DataOut[DataOutLen - DataOutLenRest], 262);
 		if(res == (retVal*) NFC_FAIL){//error handling
 			//low level error
@@ -336,8 +337,7 @@ int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned 
 
 // DelayMs() Status: untested
 // desc:	进行延时,仅用于CC254x平台.
-// input:	delay: 延时值,并不是ms数
-// output: 	void.
+// input:	delay: 延时�?并不是ms�?// output: 	void.
 void DelayMs(unsigned int ms){
 #ifdef LINUX
 	fd_set fds;
@@ -530,8 +530,10 @@ int UARTflushRxBuf(void){
 	read(fd,buf,RX_BUFFER_LEN);
 	return NFC_SUCCESS;
 #else
-	unsigned char buf[RX_BUFFER_LEN] = {0};
-	HalUARTRead(HAL_UART_PORT_0,buf,RX_BUFFER_LEN);
+	uint16 len = Hal_UART_RxBufLen(HAL_UART_PORT_0);
+	uint8 *buf = osal_mem_alloc(len);
+	HalUARTRead(HAL_UART_PORT_0,buf,len);
+	osal_mem_free(buf);
 	return NFC_SUCCESS;
 #endif
 }
@@ -1466,17 +1468,61 @@ err:
 //					BR:106, 212 or 424kbps.
 //					Next:indicate the next bytes. please refer to the User Manual.
 //					PassiveInitiatorData: should be 4 bytes when BR = 106
-//								 						 should be 5 bytes when BR = 212/424
+//					should be 5 bytes when BR = 212/424
 //					NFCID3i:should be 10 bytes long.
 //					Gi:general bytes.
 //					GiLen: the length of Gi.
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* inJumpForPSL(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, 	unsigned char* NFCID3i, unsigned char* Gi, unsigned int GiLen){
+	
 	return (retVal*) NFC_FAIL;
 }
 
-int inListPassiveTarget(unsigned char MaxTg, unsigned char BrTy, unsigned char* InitiatorData){
-	return NFC_SUCCESS;
+// inJumpForPSL() Status:unimplemented
+//	input:		MaxTg: 	max number of target to be init
+//				BrTy:	baud rate of communication used by card
+//				InitiatorData: the initiator data.
+//	output: 	NFC_FAIL when failed or struct retVal when succeed
+retVal* inListPassiveTarget(unsigned char MaxTg, unsigned char BrTy, unsigned char* InitiatorData, int InitiatorDataLen){
+	//build TFI + PData
+	unsigned char *PData = NULL;
+	int PDataLen = 4 + InitiatorDataLen;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+#ifdef LINUX
+		printf("PDataMemoAllocError\n");
+#else
+		HalLcdWriteString( "PDataMemoAllocError", HAL_LCD_LINE_7 );
+#endif
+		goto err;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x4A;
+	PData[2] = MaxTg;
+	PData[3] = BrTy;
+	memcpy(&PData[4], InitiatorData, InitiatorDataLen);
+
+	//transmit data
+	retVal* OutParam = NULL;
+	OutParam = PN532transceive(PData, PDataLen, 300);
+	if(OutParam == (retVal*) NFC_FAIL){	//transcevie error
+#ifdef LINUX
+		printf("TransceiveError\n");
+#else
+		HalLcdWriteString( "TransceiveError", HAL_LCD_LINE_7 );
+#endif
+		goto err;
+	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	return OutParam;
+
+err:
+	//deal with junks
+	osal_mem_free(PData);
+	return (retVal*) NFC_FAIL;
 }
 
 int inATR(unsigned char Tg, unsigned char Next, unsigned char* NFCID3i, unsigned char* Gi){
@@ -1751,7 +1797,7 @@ err:
 
 // tgSetMetaData() Status: untested
 //	input:		DataOut: the data to be transfer out from the target;
-//					DataOutLen: the length of DataOut;
+//				DataOutLen: the length of DataOut;
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* tgSetMetaData(unsigned char* DataOut, int DataOutLen){
 	//build TFI + PData
@@ -1793,15 +1839,93 @@ err:
 	return (retVal*) NFC_FAIL;
 }
 
-int tgGetInitiatorCommand(void){
-	return NFC_SUCCESS;
+//  tgGetInitiatorCommand() Status: untested
+//	input:		void
+//	output: 	NFC_FAIL when failed or struct retVal when succeed
+retVal* tgGetInitiatorCommand(void){
+	//build TFI + PData
+	unsigned char *PData = NULL;
+	int PDataLen = 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+#ifdef LINUX
+		printf("PDataMemoAllocError\n");
+#else
+		HalLcdWriteString( "PDataMemoAllocError", HAL_LCD_LINE_7 );
+#endif
+		goto err;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x88;
+
+	//transmit data
+	retVal* OutParam = NULL;
+	OutParam = PN532transceive(PData, PDataLen, 300);
+	if(OutParam == (retVal*) NFC_FAIL){	//transcevie error
+#ifdef LINUX
+		printf("TransceiveError\n");
+#else
+		HalLcdWriteString( "TransceiveError", HAL_LCD_LINE_7 );
+#endif
+		goto err;
+	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	return OutParam;
+
+err:
+	//deal with junks
+	osal_mem_free(PData);
+	return (retVal*) NFC_FAIL;
 }
 
-int tgResponseToInitiator(unsigned char* TgResponse){
-	return NFC_SUCCESS;
+//  tgResponseToInitiator() Status: untested
+//	input:		TgResponse: the data to be transfer out from the target;
+//				TgResponseLen: the length of TgResponse;
+//	output: 	NFC_FAIL when failed or struct retVal when succeed
+retVal* tgResponseToInitiator(unsigned char* TgResponse, int TgResponseLen){
+	//build TFI + PData
+	unsigned char *PData = NULL;
+	int PDataLen = TgResponseLen + 2;
+	PData = osal_mem_alloc(PDataLen);
+	if(PData == NULL){
+		//memory allocation unsuccess
+#ifdef LINUX
+		printf("PDataMemoAllocError\n");
+#else
+		HalLcdWriteString( "PDataMemoAllocError", HAL_LCD_LINE_7 );
+#endif
+		goto err;
+	}
+	PData[0] = 0xD4;
+	PData[1] = 0x90;
+	memcpy(&PData[2], TgResponse, TgResponseLen);
+
+	//transmit data
+	retVal* OutParam = NULL;
+	OutParam = PN532transceive(PData, PDataLen, 300);
+	if(OutParam == (retVal*) NFC_FAIL){	//transcevie error
+#ifdef LINUX
+		printf("TransceiveError\n");
+#else
+		HalLcdWriteString( "TransceiveError", HAL_LCD_LINE_7 );
+#endif
+		goto err;
+	}
+
+	//deal with junks
+	osal_mem_free(PData);
+	return OutParam;
+
+err:
+	//deal with junks
+	osal_mem_free(PData);
+	return (retVal*) NFC_FAIL;
 }
 
-// tgGetTargetStatus() Status: untested
+//  tgGetTargetStatus() Status: untested
 //	input:		void
 //	output: 	NFC_FAIL when failed or struct retVal when succeed
 retVal* tgGetTargetStatus(void){
