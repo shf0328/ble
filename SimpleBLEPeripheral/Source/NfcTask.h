@@ -31,6 +31,20 @@ extern "C"
 #define NFC_READER_MODE_DE_EVT		0x0020
 #define NFC_PERIODIC_EVT			0x0080
 
+
+#define CARD_MODE   0
+#define SOCIAL_MODE 1
+#define READER_MODE 2
+  
+#define CARD   0
+#define SOCIAL 1
+#define READER 2
+
+/*********************************************************************
+ * VARIABLES
+ */
+static uint8 NfcTask_TaskID;   // Task ID for internal task/event processing
+
 /*********************************************************************
  * MACROS
  */

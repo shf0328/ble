@@ -10,6 +10,7 @@
  * INCLUDES
  */
 #include "PN532_NFC.h"
+#include "NfcTask.h"
 #include "bcomdef.h"
 #include "OSAL.h"
 #include "OSAL_PwrMgr.h"
@@ -122,7 +123,8 @@ static uint8 i =0;
 //用于测试的一个结构体
 uint8 seq=0;
 uint8 value=0;
-uint8 receiveflag=0;
+extern uint8 next;
+
 /*********************************************************************
 特征值                 UUID    初始权限	         验证后权限	
 主机命令位	FFF1	                NONE	              	Read&Write	
@@ -320,58 +322,7 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
   if ( keys & HAL_KEY_CENTER )
   {
     /*HalLcdWriteString( "HAL_KEY_CENTER", HAL_LCD_LINE_5 );
-    uint8 temp[4]={12,13,11,10};
-    flash_Rinfo_short_write(temp, 4);
     
-    int temp=1;
-    uint8 transfer[50]={0};
-    uint8 receive[50]={0};
-    
-    for(int i=0; i<6;i++)
-    {
-      temp=NfcInit();
-      if(temp==NFC_SUCCESS)
-      {
-        break;
-      }
-    }
-    
-      
-    if(temp==NFC_FAIL)
-    {
-      goto err_process;
-    }
-    
-
-    temp=flash_Tinfo_all_read(transfer);
-    if(temp==NV_OPER_FAILED)
-    {
-      goto err_process;
-    }
-      
-    temp=NfcDataExchange(transfer,50,receive);
-    if(temp==NFC_FAIL)
-    {
-      goto err_process;
-    }
-      
-    temp=flash_Rinfo_all_write(receive);
-    if(temp==NV_OPER_FAILED)
-    {
-      goto err_process;
-    }
-      
-    temp=NfcRelease();
-    if(temp==NFC_FAIL)
-    {
-      goto err_process;
-    }
-    
-    HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
-  
-  
-  err_process:
-    */
         int res = NFC_FAIL;
 	int initCnt = 0;
         //int temp=0;
@@ -398,6 +349,15 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
 	}
 
 	NfcRelease();
+    */
+    //next=SOCIAL_MODE;
+    osal_event_hdr_t *msgPtr;
+    msgPtr = (osal_event_hdr_t *)osal_msg_allocate( sizeof(osal_event_hdr_t) );
+    if ( msgPtr )
+    {
+      msgPtr->event=SOCIAL;
+      osal_msg_send( 12, (uint8 *)msgPtr );
+    }  
   }
   
   if ( keys & HAL_KEY_DOWN )
@@ -426,7 +386,7 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
       seq--;
     }
     HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
-    HalLedBlink (HAL_LED_1, 5, 50, 2000);
+    //HalLedBlink (HAL_LED_1, 5, 50, 2000);
   }
 }
 
