@@ -122,8 +122,7 @@ static uint8 i =0;
 //用于测试的一个结构体
 uint8 seq=0;
 uint8 value=0;
-//uint8 send[50]={0};
-//uint8 receive[50]={0};
+uint8 receiveflag=0;
 /*********************************************************************
 特征值                 UUID    初始权限	         验证后权限	
 主机命令位	FFF1	                NONE	              	Read&Write	
@@ -427,7 +426,7 @@ static void simpleBLEPeripheral_HandleKeys( uint8 shift, uint8 keys )
       seq--;
     }
     HalLcdWriteStringValue( "SEQ = ", seq, 10, HAL_LCD_LINE_6 );
-    
+    HalLedBlink (HAL_LED_1, 5, 50, 2000);
   }
 }
 
