@@ -351,7 +351,7 @@ void DelayMs(unsigned int ms){
 #else
 	unsigned int i,j,k;
 	for(k=0; k<1000; k++){
-		if(0 < UARTRxBufLen())	return;
+		//if(0 < UARTRxBufLen())	return;
 		for(i=0; i<ms; i++)
 			for(j=0; j<535; j++);
 	}

@@ -52,9 +52,7 @@
 /*********************************************************************
  * CONSTANTS
  */
-#define CARD_MODE 0
-#define SOCIAL_MODE 1
-#define READER_MODE 2
+
 
 #define NFC_PERIODIC_EVT_PERIOD 1000
 #define SOCIAL_INIT_MAX_TRY_COUNT 10000
@@ -65,7 +63,7 @@
 /*********************************************************************
  * GLOBAL VARIABLES
  */
-static uint8 NfcTask_TaskID;   // Task ID for internal task/event processing
+
 uint8 next = CARD_MODE;
 uint8 now = CARD_MODE;
 uint16 SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
@@ -103,7 +101,8 @@ uint16 SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
  * @return  none
  */
 void NfcTask_Init( uint8 task_id ){
-	VOID task_id;
+	NfcTask_TaskID = task_id;
+	osal_start_timerEx( NfcTask_TaskID, NFC_PERIODIC_EVT, NFC_PERIODIC_EVT_PERIOD );
 }
 
 /*********************************************************************
@@ -128,10 +127,18 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 		if ( (pMsg = osal_msg_receive( NfcTask_TaskID )) != NULL ){
 			//process message
 			switch ( ((osal_event_hdr_t*)pMsg)->event ){
-				/*case KEY_CHANGE:
-					simpleBLEPeripheral_HandleKeys( ((keyChange_t *)pMsg)->state, ((keyChange_t *)pMsg)->keys );
-					break;*/
-				
+				case CARD:
+					next = CARD_MODE;
+					break;
+					
+				case SOCIAL:
+					next = SOCIAL_MODE;
+					break;
+					
+				case READER:
+					next = READER_MODE;
+					break;
+					
 				default:
 					// do nothing
 					break;
@@ -243,8 +250,18 @@ social_init_fail:
 	
 	//process social mode data exchange event
 	if(events & NFC_SOCIAL_MODE_DE_EVT){
-		//TODO: social mode data exchange
-		int res = NfcDataExchange(NULL, 0, NULL);
+		
+                uint8 send[50]={0};
+                uint8 rec[50]={0};
+                flash_Tinfo_all_read(send);
+		int res = NfcDataExchange(send, 50, rec);
+                if(res==NFC_FAIL){
+                    HalLcdWriteString( "FAIL", HAL_LCD_LINE_5 );
+                }else{
+                    flash_Rinfo_all_write(rec);
+                    HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
+                }
+                NfcRelease();
 		return (events ^ NFC_SOCIAL_MODE_DE_EVT);
 	}
 	
