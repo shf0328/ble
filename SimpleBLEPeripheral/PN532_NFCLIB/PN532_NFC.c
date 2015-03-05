@@ -81,8 +81,8 @@ int NfcDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataI
 // output:	void
 void NfcRelease(void){
 	//switch to STANDBY mode
-	unsigned char pn532_wakeup_outLVbat_preamble[40] = {0x55, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
-	UARTsend(pn532_wakeup_outLVbat_preamble, 40);
+	unsigned char pn532_wakeup_outLVbat_preamble[10] = {0x00, 0x00, 0xFF, 0x03, 0xFD, 0xD4, 0x14, 0x01, 0x17, 0x00};
+	UARTsend(pn532_wakeup_outLVbat_preamble, 10);
 	//flush rx buf
 	UARTflushRxBuf();
 }
@@ -109,11 +109,11 @@ int PN532InitAsInitiator(void){
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
-	}
-
+	}else{
 	//deal with junks
 	osal_mem_free(res);
 	return NFC_SUCCESS;
+	}
 }
 
 // PN532InitAsTarget() Status: tested
@@ -133,7 +133,7 @@ int PN532InitAsTarget(void){
 		HalLcdWriteString( "tg init low level error", HAL_LCD_LINE_8 );
 #endif
 		return NFC_FAIL;
-	}else if(res->Rcv[0] == 0x7F){	//syntax error
+	}else if(res->Rcv[0] != 0x00){	//app level error
 #ifdef LINUX
 		printf("syntax error\n");
 #else
@@ -141,11 +141,11 @@ int PN532InitAsTarget(void){
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
-	}
-
+	}else{
 	//deal with junks
 	osal_mem_free(res);
 	return NFC_SUCCESS;
+	}
 }
 
 // PN532TargetDataExchange() Status: tested
@@ -351,7 +351,7 @@ void DelayMs(unsigned int ms){
 #else
 	unsigned int i,j,k;
 	for(k=0; k<1000; k++){
-		//if(0 < UARTRxBufLen())	return;
+		if(5 < UARTRxBufLen())	return;
 		for(i=0; i<ms; i++)
 			for(j=0; j<535; j++);
 	}
@@ -569,11 +569,7 @@ int PN532sendFrame(unsigned char* PData,unsigned int PDdataLEN){
 			}
 			//receiving ACK and SAM info frame
 			//short delay
-#ifdef LINUX
-			usleep(10000);
-#else
 			DelayMs(300);
-#endif
 			//receive ACK frame
 			RetVal = PN532receiveFrame();
 			if(RetVal == (retVal*) NFC_FAIL){		//error handling
@@ -961,11 +957,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen, unsigned int timeout
 	}
 
 	//short delay
-#ifdef LINUX
-	usleep(10000);
-#else
 	DelayMs(10);
-#endif
 
 	//receive ACK frame
 	Receive = PN532receiveFrame();
@@ -989,11 +981,7 @@ retVal* PN532transceive(unsigned char* Input, int InputLen, unsigned int timeout
 	}
 
 	//short delay
-#ifdef LINUX
-	sleep(1);
-#else
 	DelayMs(timeout);
-#endif
 
 	//receive info frame
 	osal_mem_free(Receive);
@@ -1559,7 +1547,7 @@ retVal* inDataExchange(unsigned char Tg, unsigned char* DataOut, unsigned int Da
 
 	//transmit data
 	retVal* OutParam = NULL;
-	OutParam = PN532transceive(PData, PDataLen, 1000);
+	OutParam = PN532transceive(PData, PDataLen, 600);
 	if(OutParam == (retVal*) NFC_FAIL){	//transcevie error
 #ifdef LINUX
 		printf("TransceiveError\n");
