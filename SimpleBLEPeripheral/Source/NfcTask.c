@@ -66,10 +66,15 @@
 
 uint8 next = CARD_MODE;
 uint8 now = CARD_MODE;
+
+//card mode
+
+//social mode
 uint16 SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
 
-//card info
-
+//reader mode card info
+uint8 Key[6] = {0};
+uint8 SerialNum[4] = {0};
 /*********************************************************************
  * EXTERNAL VARIABLES
  */
@@ -159,7 +164,7 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 		
 		switch(next){
 			case CARD_MODE:
-				if(events & NFC_CARD_MODE_DE_EVT){
+				if( events & (~NFC_CARD_MODE_DE_EVT) ){
 					//do nothing
 				}else{
 					//start the event to init pn532 as card
@@ -174,7 +179,7 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 					next = CARD_MODE;
 				}
 				else{
-					if(events & NFC_SOCIAL_MODE_DE_EVT){
+					if( events & (~NFC_SOCIAL_MODE_DE_EVT) ){
 						//do nothing
 					}else{
 						osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_INIT_EVT);
@@ -185,7 +190,7 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 				break;
 			
 			case READER_MODE:
-				if(events & NFC_READER_MODE_DE_EVT){
+				if( events & (~NFC_READER_MODE_INIT_EVT) ){
 					//do nothing
 				}else{
 					osal_set_event(NfcTask_TaskID, NFC_READER_MODE_INIT_EVT);
@@ -219,6 +224,7 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 			NfcRelease();
 			goto card_init_fail;
 		}
+		//TODO: deal with first cmd
 		
 		//deal with junks
 		osal_mem_free(res);
@@ -231,7 +237,7 @@ card_init_fail:
 	//process card mode data exchange event
 	if(events & NFC_CARD_MODE_DE_EVT){
 		//TODO: mifare card data exchange
-		//using tgGetInitiatorData and tg ResponseToInitiator
+		//using tgGetInitiatorData and tgResponseToInitiator
 		return (events ^ NFC_CARD_MODE_DE_EVT);
 	}
 	
@@ -244,24 +250,24 @@ card_init_fail:
 			goto social_init_fail;
 		}
 		osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_DE_EVT);
-social_init_fail:
+social_init_fail:		
 		return (events ^ NFC_SOCIAL_MODE_INIT_EVT);
 	}
 	
 	//process social mode data exchange event
 	if(events & NFC_SOCIAL_MODE_DE_EVT){
-		
-                uint8 send[50]={0};
-                uint8 rec[50]={0};
-                flash_Tinfo_all_read(send);
+		uint8 send[50]={0};
+		uint8 rec[50]={0};
+		flash_Tinfo_all_read(send);
 		int res = NfcDataExchange(send, 50, rec);
-                if(res==NFC_FAIL){
-                    HalLcdWriteString( "FAIL", HAL_LCD_LINE_5 );
-                }else{
-                    flash_Rinfo_all_write(rec);
-                    HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
-                }
-                NfcRelease();
+		if(res == NFC_FAIL){
+			HalLcdWriteString( "FAIL", HAL_LCD_LINE_5 );
+			goto social_de_fail;
+		}
+		flash_Rinfo_all_write(rec);
+		HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
+social_de_fail:
+		NfcRelease();
 		return (events ^ NFC_SOCIAL_MODE_DE_EVT);
 	}
 	
@@ -293,19 +299,67 @@ social_init_fail:
 		}
 		
 		//TODO: deal with card info
-		
+		memcpy(SerialNum, res->Rcv[6], 4);
 		//deal with junks
 		osal_mem_free(res);
-		osal_set_event(NfcTask_TaskID, NFC_READER_MODE_DE_EVT);
+		osal_set_event(NfcTask_TaskID, NFC_READER_MODE_AUTH_EVT);
 reader_init_fail:
 		return (events ^ NFC_READER_MODE_INIT_EVT);
 	}
 	
-	//process reader mode data exchange event
-	if(events & NFC_READER_MODE_DE_EVT){
-		//TODO: reader mode data exchange
-		//using inDataExchange
-		return (events ^ NFC_READER_MODE_DE_EVT);
+	//authenticate mifare card
+	if(events & NFC_READER_MODE_AUTH_EVT){
+		//Authentication
+		int DataOutLen = 18;
+		uint8* DataOut = osal_mem_alloc(DataOutLen);
+		DataOut[0] = 0x60;	//Authentication A
+		//TODO: set address and key
+		
+		memcpy(&DataOut[8], SerialNum, 4);
+		retVal* res = inDataExchange(1, DataOut, DataOutLen);
+		if(res == (retVal*) NFC_FAIL){
+			//low level error
+			NfcRelease();
+			goto reader_auth_fail;
+		}else if( (res->Rcv[0]&0x3F) != 0 ){
+			//app level error
+			NfcRelease();
+			goto reader_auth_fail;
+		}
+		
+		osal_set_event(NfcTask_TaskID, NFC_READER_MODE_READ_EVT);
+		osal_mem_free(DataOut);
+		osal_mem_free(res);
+reader_auth_fail:
+		return (events ^ NFC_READER_MODE_AUTH_EVT);
+	}
+	
+	//read mifare card
+	if(events & NFC_READER_MODE_READ_EVT){
+		//TODO: reader mode data exchange using inDataExchange
+		
+		//Reading
+		int DataOutLen = 2;
+		uint8* DataOut = osal_mem_alloc(DataOutLen);
+		DataOut[0] = 0x30;	//16-bytes reading
+		//TODO: set address
+		
+		retVal* res = inDataExchange(1, DataOut, DataOutLen);
+		if(res == (retVal*) NFC_FAIL){
+			//low level error
+			goto reader_auth_fail;
+		}else if( (res->Rcv[0]&0x3F) != 0 ){
+			//app level error
+			goto reader_auth_fail;
+		}
+		//TODO: handle received data
+		
+		next = CARD_MODE;
+		NfcRelease();
+		osal_mem_free(DataOut);
+		osal_mem_free(res);
+reader_auth_fail:
+		return (events ^ NFC_READER_MODE_READ_EVT);
 	}
 	
 	// Discard unknown events
