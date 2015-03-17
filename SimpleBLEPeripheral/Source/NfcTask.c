@@ -9,6 +9,7 @@
  * INCLUDES
  */
 #include "PN532_NFC.h"
+#include <string.h>
 #include "bcomdef.h"
 #include "OSAL.h"
 #include "OSAL_PwrMgr.h"
@@ -55,7 +56,7 @@
 
 
 #define NFC_PERIODIC_EVT_PERIOD 1000
-#define SOCIAL_INIT_MAX_TRY_COUNT 10000
+#define SOCIAL_INIT_MAX_TRY_COUNT 200
  /*********************************************************************
  * TYPEDEFS
  */
@@ -66,12 +67,12 @@
 
 uint8 next = CARD_MODE;
 uint8 now = CARD_MODE;
-
 //card mode
 
 //social mode
 uint16 SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
-
+uint8 SocialToRcvInitInfo = 0;
+retVal* SocialRcvRetVal = NULL;
 //reader mode card info
 uint8 Key[6] = {0};
 uint8 SerialNum[4] = {0};
@@ -138,6 +139,7 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 					
 				case SOCIAL:
 					next = SOCIAL_MODE;
+					SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
 					break;
 					
 				case READER:
@@ -164,13 +166,15 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 		
 		switch(next){
 			case CARD_MODE:
-				if( events & (~NFC_CARD_MODE_DE_EVT) ){
+				/*if( events & NFC_CARD_MODE_INIT_EVT ){
+					//do nothing
+				}else if( events & NFC_CARD_MODE_DE_EVT ){
 					//do nothing
 				}else{
 					//start the event to init pn532 as card
 					osal_set_event(NfcTask_TaskID, NFC_CARD_MODE_INIT_EVT);
 				}
-				now = CARD_MODE;
+				now = CARD_MODE;*/
 				break;
 			
 			case SOCIAL_MODE:
@@ -179,8 +183,11 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 					next = CARD_MODE;
 				}
 				else{
-					if( events & (~NFC_SOCIAL_MODE_DE_EVT) ){
-						//do nothing
+					//start the event to init pn532 as card
+					if(events & NFC_SOCIAL_MODE_DE_EVT){
+					
+					}else if(events & NFC_SOCIAL_RCV_EVT){
+						
 					}else{
 						osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_INIT_EVT);
 					}
@@ -190,9 +197,14 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 				break;
 			
 			case READER_MODE:
-				if( events & (~NFC_READER_MODE_INIT_EVT) ){
+				if( events & NFC_READER_MODE_INIT_EVT ){
+					//do nothing
+				}else if( events & NFC_READER_MODE_AUTH_EVT ){
+					//do nothing
+				}else if( events & NFC_READER_MODE_READ_EVT ){
 					//do nothing
 				}else{
+					//start the event to init pn532 as card
 					osal_set_event(NfcTask_TaskID, NFC_READER_MODE_INIT_EVT);
 				}
 				now = READER_MODE;
@@ -209,7 +221,7 @@ uint16 NfcTask_ProcessEvent( uint8 task_id, uint16 events ){
 		unsigned char MifareParams[6] = {0, 0, 0, 0, 0, 0x40};
 		unsigned char FelicaParams[18] = {0};
 		unsigned char NFCID3t[10] = {0};
-		retVal* res = tgInitAsTarget(0, MifareParams, FelicaParams, NFCID3t, 0, NULL, 0, NULL);
+		retVal* res = tgInitAsTarget(5, MifareParams, FelicaParams, NFCID3t, 0, NULL, 0, NULL, 1);
 		if(res == (retVal*) NFC_FAIL){	//low level error
 #ifdef DEBUG
 			HalLcdWriteString( "card init low level error", HAL_LCD_LINE_8 );
@@ -241,21 +253,94 @@ card_init_fail:
 		return (events ^ NFC_CARD_MODE_DE_EVT);
 	}
 	
-	//process social mode initialization event
+	//process social mode event
 	if(events & NFC_SOCIAL_MODE_INIT_EVT){
+	
+		//check if it's in social mode
+		if(now != SOCIAL_MODE){
+			goto social_init_fail;
+		}
+		
 		nfcUARTOpen();
-		int res = NfcInit();
+		NfcRelease();
+		int res = PN532InitAsInitiator();
 		if(res == NFC_FAIL){
 			NfcRelease();
 			goto social_init_fail;
 		}
-		osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_DE_EVT);
-social_init_fail:		
+		SocialToRcvInitInfo = 1;
+		osal_start_timerEx( NfcTask_TaskID, NFC_SOCIAL_RCV_EVT, 100 );
+social_init_fail:
 		return (events ^ NFC_SOCIAL_MODE_INIT_EVT);
+	}
+	
+	//process social mode initialization receive event
+	if(events & NFC_SOCIAL_RCV_EVT){
+		
+		if(SocialToRcvInitInfo == 1){
+			//to receive social init info
+			//short delay
+			DelayMs(50);
+			//receive info frame
+			retVal* Receive = PN532receiveFrame();
+			if(Receive == (retVal*) NFC_FAIL){	//error handling
+#ifdef LINUX
+				printf("InfoRcvError\n");
+#else
+				HalLcdWriteString( "InfoRcvError", HAL_LCD_LINE_6 );
+#endif
+				NfcRelease();
+				goto social_rcv_fail;
+			}
+
+			//load info frame into Output
+			if(Receive->Rcv[0] == 0x7F){
+				SocialRcvRetVal = (retVal *) osal_mem_alloc (sizeof (retVal) + 1);
+				if(SocialRcvRetVal == NULL){	//memory allocation unsuccess
+#ifdef LINUX
+					printf("OutpMemoAllocError\n");
+#else
+					HalLcdWriteString( "OutpMemoAllocError", HAL_LCD_LINE_6 );
+#endif
+					osal_mem_free(Receive);
+					NfcRelease();
+					goto social_rcv_fail;
+				}
+				//syntax error
+				SocialRcvRetVal->Rcv[0] = 0x7F;
+				SocialRcvRetVal->length = 1;
+			}else{
+				SocialRcvRetVal = (retVal *) osal_mem_alloc (sizeof (retVal) + Receive->length-2);
+				if(SocialRcvRetVal == NULL){	//memory allocation unsuccess
+#ifdef LINUX
+					printf("OutpMemoAllocError\n");
+#else
+					HalLcdWriteString( "OutpMemoAllocError", HAL_LCD_LINE_6 );
+#endif
+					osal_mem_free(Receive);
+					NfcRelease();
+					goto social_rcv_fail;
+				}
+				//info frame
+				memcpy(SocialRcvRetVal->Rcv, &Receive->Rcv[2], Receive->length-2);
+				SocialRcvRetVal->length = Receive->length-2;
+			}
+			//init success
+			osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_DE_EVT);
+			SocialToRcvInitInfo = 0;
+		}
+		
+social_rcv_fail:
+		return (events ^ NFC_SOCIAL_RCV_EVT);
 	}
 	
 	//process social mode data exchange event
 	if(events & NFC_SOCIAL_MODE_DE_EVT){
+		//check if it's in social mode
+		if(now != SOCIAL_MODE){
+			goto social_de_end;
+		}
+			
 		uint8 send[50]={0};
 		uint8 rec[50]={0};
 		flash_Tinfo_all_read(send);
@@ -268,6 +353,9 @@ social_init_fail:
 		HalLcdWriteString( "SUCCESS", HAL_LCD_LINE_5 );
 social_de_fail:
 		NfcRelease();
+		next = CARD_MODE;
+		SocialInitRestTryCnt = SOCIAL_INIT_MAX_TRY_COUNT;
+social_de_end:
 		return (events ^ NFC_SOCIAL_MODE_DE_EVT);
 	}
 	
@@ -299,7 +387,7 @@ social_de_fail:
 		}
 		
 		//TODO: deal with card info
-		memcpy(SerialNum, res->Rcv[6], 4);
+		memcpy(SerialNum, &res->Rcv[6], 4);
 		//deal with junks
 		osal_mem_free(res);
 		osal_set_event(NfcTask_TaskID, NFC_READER_MODE_AUTH_EVT);
@@ -347,10 +435,10 @@ reader_auth_fail:
 		retVal* res = inDataExchange(1, DataOut, DataOutLen);
 		if(res == (retVal*) NFC_FAIL){
 			//low level error
-			goto reader_auth_fail;
+			goto reader_read_fail;
 		}else if( (res->Rcv[0]&0x3F) != 0 ){
 			//app level error
-			goto reader_auth_fail;
+			goto reader_read_fail;
 		}
 		//TODO: handle received data
 		
@@ -358,7 +446,7 @@ reader_auth_fail:
 		NfcRelease();
 		osal_mem_free(DataOut);
 		osal_mem_free(res);
-reader_auth_fail:
+reader_read_fail:
 		return (events ^ NFC_READER_MODE_READ_EVT);
 	}
 	
