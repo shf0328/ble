@@ -79,7 +79,7 @@ extern int PN532InitAsTarget(void);
 extern int PN532TargetDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
 extern int PN532InitiatorDataExchange(unsigned char* DataOut, int DataOutLen, unsigned char* DataIn);
 extern void UARTcallback(unsigned char task_id, unsigned int events);
-
+extern void DelayMs(unsigned int ms);
 //---------------------------------------------------------------------------
 // L0 functions
 //
@@ -117,7 +117,7 @@ extern int PN532RegulationTest(unsigned char TxMode);
 //---------------------------------------------------------------------------
 // Initiator Commands
 //
-extern retVal* inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, int GiLen);
+extern retVal* inJumpForDEP(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, int GiLen, int WithInfo);
 extern retVal* inJumpForPSL(unsigned char ActPass, unsigned char BR, unsigned char Next, unsigned char* PassiveInitiatorData, unsigned char* NFCID3i, unsigned char* Gi, unsigned int GiLen);
 extern retVal* inListPassiveTarget(unsigned char MaxTg, unsigned char BrTy, unsigned char* InitiatorData, int InitiatorDataLen);
 extern int inATR(unsigned char Tg, unsigned char Next, unsigned char* NFCID3i, unsigned char* Gi);
@@ -132,7 +132,7 @@ extern int inAutoPoll(unsigned char PollNr, unsigned char Period, unsigned char*
 //---------------------------------------------------------------------------
 // Target Commands
 //
-extern retVal* tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned char* FeliCaParams, unsigned char* NFCID3t, unsigned char LENGt, unsigned char* Gt, unsigned char LENTk, unsigned char* Tk);
+extern retVal* tgInitAsTarget(unsigned char Mode, unsigned char* MifareParams, unsigned char* FeliCaParams, unsigned char* NFCID3t, unsigned char LENGt, unsigned char* Gt, unsigned char LENTk, unsigned char* Tk, int WithInfo);
 extern int tgSetGeneralBytes(unsigned char* Gt);
 extern retVal* tgGetData();
 extern retVal* tgSetData(unsigned char* DataOut, int DataOutLen);
