@@ -238,13 +238,15 @@ card_init_fail:
 	//process social mode initialization event
 	if(events & NFC_SOCIAL_MODE_INIT_EVT){
 		nfcUARTOpen();
-		int res = NfcInit();
+		int res = NFC_FAIL;
+                res = NfcInit();
 		if(res == NFC_FAIL){
 			NfcRelease();
-			goto social_init_fail;
 		}
-		osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_DE_EVT);
-social_init_fail:
+                if(res == NFC_SUCCESS)
+                {
+                  osal_set_event(NfcTask_TaskID, NFC_SOCIAL_MODE_DE_EVT);
+                }
 		return (events ^ NFC_SOCIAL_MODE_INIT_EVT);
 	}
 	

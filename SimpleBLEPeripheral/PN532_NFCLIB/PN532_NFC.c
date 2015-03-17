@@ -109,11 +109,11 @@ int PN532InitAsInitiator(void){
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
-	}
-
-	//deal with junks
-	osal_mem_free(res);
-	return NFC_SUCCESS;
+	}else{
+                //deal with junks
+                osal_mem_free(res);
+                return NFC_SUCCESS;
+        }
 }
 
 // PN532InitAsTarget() Status: tested
@@ -141,11 +141,11 @@ int PN532InitAsTarget(void){
 #endif
 		osal_mem_free(res);
 		return NFC_FAIL;
-	}
-
-	//deal with junks
-	osal_mem_free(res);
-	return NFC_SUCCESS;
+	}else{
+                //deal with junks
+                osal_mem_free(res);
+                return NFC_SUCCESS;
+        }
 }
 
 // PN532TargetDataExchange() Status: tested
@@ -351,7 +351,7 @@ void DelayMs(unsigned int ms){
 #else
 	unsigned int i,j,k;
 	for(k=0; k<1000; k++){
-		//if(0 < UARTRxBufLen())	return;
+		if(5 < UARTRxBufLen())	return;
 		for(i=0; i<ms; i++)
 			for(j=0; j<535; j++);
 	}
